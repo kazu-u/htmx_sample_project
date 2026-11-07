@@ -1,0 +1,8 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<li th:fragment="noteItem" th:text="${submittedNote}"></li>
+<p id="note-error" class="field-error" role="alert" th:fragment="validationError" hx-swap-oob="outerHTML"
+   th:text="${noteError}"></p>
+</body>
+</html>

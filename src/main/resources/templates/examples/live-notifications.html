@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>サーバーイベントによるライブ通知 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/vendor/htmx-ext-sse/2.2.4/sse.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/live-notifications.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('live-notifications')}"></aside>
+<main>
+  <h1>サーバーイベントによるライブ通知（SSE）</h1>
+  <p>ブラウザーが一度だけGET接続を開き、サーバーが架空の通知をHTMLとして順番に送ります。A09の定期更新のように、ブラウザーから繰り返しGETする方式とは通信の開始方向が異なります。</p>
+  <ol>
+    <li>ページを開いたままにし、3秒ごとに通知が一覧へ追加されることを確認します。</li>
+    <li>5件目の通知の後に配信が正常終了し、接続状態が終了へ変わることを確認します。</li>
+    <li>開発者ツールでストリームを一時的に遮断し、再接続中の表示、イベントIDからの続き、連続失敗後の停止を確認します。</li>
+  </ol>
+  <noscript>
+    <p>JavaScript が無効なためライブ配信は行いません。このページを再読み込みすると静的な説明を再表示できます。</p>
+  </noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+
+  <section id="notification-stream"
+           hx-ext="sse"
+           sse-connect="/examples/live-notifications/stream"
+           sse-close="finished"
+           aria-labelledby="notification-title">
+    <h2 id="notification-title">通知一覧</h2>
+    <p id="stream-status" role="status" aria-live="polite">接続しています。最初の通知まで最大3秒かかります。</p>
+    <ol id="notification-log" sse-swap="notification" hx-swap="beforeend"
+        aria-live="polite" aria-relevant="additions" aria-atomic="false">
+      <li id="notification-placeholder">サーバーからの通知を待っています。</li>
+    </ol>
+    <p id="stream-retry" hidden>
+      接続を停止しました。<a th:href="@{/examples/live-notifications}">ページを再読み込みして再接続</a>してください。
+    </p>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>サーバーからイベントを受け取るまでの流れ</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答と差し替え先</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/live-notifications</td><td>200・ページ全体。JavaScriptが有効ならSSE接続を開始</td></tr>
+      <tr><td>通知を受信</td><td>GET /examples/live-notifications/stream</td><td>text/event-stream。3秒ごとにHTML通知を一覧末尾へ追加</td></tr>
+      <tr><td>切断後に再接続</td><td>同じSSE URLと Last-Event-ID ヘッダー</td><td>最後に受信したIDの次の通知から配信</td></tr>
+      <tr><td>拡張が接続を再作成</td><td>同じSSE URLと lastEventId クエリ</td><td>HTTPエラーでEventSourceが終了した場合も、受信済みIDの次から再開</td></tr>
+      <tr><td>全通知を配信</td><td>finished イベント</td><td><code>sse-close</code> により EventSource を閉じる</td></tr>
+      <tr><td>連続接続失敗</td><td>SSE接続の再試行</td><td>5回で再試行を止め、再読み込みによる復帰を案内</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>sse-connect</code> は EventSource の接続先、<code>sse-swap</code> は受信するイベント名、<code>hx-swap="beforeend"</code> は通知を一覧へ追記する方法を示します。</li>
+      <li>イベントIDは1〜5の固定列です。サーバーは <code>Last-Event-ID</code> を検証し、既に受け取った通知を再送せず続きから送ります。</li>
+      <li>ブラウザーが同じ EventSource を再接続する場合は <code>Last-Event-ID</code> ヘッダーを使います。HTTPエラー後に拡張が EventSource を作り直す場合は、外部JavaScriptが保持する最後のIDをクエリで引き継ぎ、サーバー側で同じ範囲検証を行います。</li>
+      <li>完了イベントで正常終了します。切断・タイムアウト時は送信タスクと接続枠を解放し、同時接続はアプリ全体で8件まで、ストリームは20秒で終了します。</li>
+      <li>連続失敗時は拡張の再接続間隔に任せ続けず、5回で停止します。SSEは一方向の通知であり、状態変更や双方向通信には使いません。</li>
+      <li>通知は架空の固定内容です。DB、外部API、セッション状態、バックグラウンドの常駐配信は使用しません。</li>
+      <li>この例では htmx SSE 拡張 2.2.4 をローカル配信します。公式例の単純な接続例に対し、配信数・接続数・時間・再開位置・失敗時停止に上限を加えています。</li>
+    </ul>
+    <p>JavaScript を無効にした場合、ページ全体と説明は表示されますが、SSE接続・ライブ更新は利用できません。外部ライブラリの追加はこの例の htmx SSE 拡張のみです。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

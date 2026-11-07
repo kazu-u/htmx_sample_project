@@ -1,0 +1,28 @@
+#confirmation-dialog {
+  box-sizing: border-box;
+  width: min(32rem, calc(100% - 2rem));
+  max-height: min(80vh, 36rem);
+  overflow: auto;
+  margin: auto;
+  padding: 1.5rem;
+  color: #172b3a;
+  border: 2px solid #5b6d7b;
+  border-radius: .5rem;
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 35%);
+}
+
+#confirmation-dialog::backdrop {
+  background: rgb(15 31 44 / 65%);
+}
+
+#confirmation-dialog form {
+  display: flex;
+  justify-content: flex-end;
+  gap: .75rem;
+  margin-top: 1rem;
+}
+
+#confirmation-dialog button:first-child {
+  color: #172b3a;
+  background: white;
+}

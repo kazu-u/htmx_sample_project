@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>ブラウザー標準ダイアログ | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/dialogs-browser.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('dialogs-browser')}"></aside>
+<main>
+  <h1>ブラウザー標準ダイアログ</h1>
+  <p><code>hx-confirm</code> は送信前の確認を、<code>hx-prompt</code> は入力を求め、入力値を <code>HX-Prompt</code> ヘッダーでサーバーに渡します。</p>
+  <ol>
+    <li>「入力して送信」を押し、最初の入力ダイアログに短いメッセージを入力します。</li>
+    <li>続く確認ダイアログで送信を続けるか選ぶと、サーバーからの応答が結果欄に表示されます。</li>
+    <li>確認または入力をキャンセルし、送信されないことを確認します。</li>
+    <li>通常フォームでもメッセージと確認欄を使って同じ検証を試します。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時は下の通常フォームを使ってください。入力後に送信確認欄へチェックし、送信します。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">送信しています…</p>
+
+  <section aria-labelledby="dialog-title" data-request-region>
+    <h2 id="dialog-title">ブラウザー標準ダイアログを試す</h2>
+    <button id="dialog-submit" type="button"
+            th:attr="hx-post=@{/examples/dialogs-browser}"
+            hx-prompt="メッセージを入力してください（100文字以内）"
+            hx-confirm="入力したメッセージを送信しますか？"
+            hx-params="none" hx-target="#dialog-result" hx-swap="outerHTML"
+            hx-indicator="#loading" hx-sync="this:drop">
+      入力して送信
+    </button>
+    <p id="dialog-result" role="status" aria-live="polite" aria-atomic="true"
+       th:if="${submittedMessage != null}">
+      入力されたメッセージ: <span th:text="${submittedMessage}"></span>
+    </p>
+    <p id="dialog-result" role="status" aria-live="polite" aria-atomic="true"
+       th:unless="${submittedMessage != null}"></p>
+  </section>
+
+  <section aria-labelledby="fallback-title">
+    <h2 id="fallback-title">通常フォーム</h2>
+    <form method="post" th:action="@{/examples/dialogs-browser}">
+      <label for="message">メッセージ（必須・100文字以内）</label>
+      <input id="message" name="message" type="text" maxlength="100"
+             th:value="${message}" aria-describedby="message-error"
+             th:attr="aria-invalid=${messageError != null ? 'true' : null}">
+      <p id="message-error" class="field-error" role="alert" th:text="${messageError}"></p>
+      <label class="confirmation-label">
+        <input type="checkbox" name="confirmed" value="true" required
+               th:checked="${confirmed}"
+               th:attr="aria-invalid=${confirmationError == true ? 'true' : null}"
+               aria-describedby="confirmation-error">
+        メッセージを送信することを確認しました
+      </label>
+      <p id="confirmation-error" class="field-error" role="alert"
+         th:text="${confirmationError == true ? '送信確認にチェックしてください。' : ''}"></p>
+      <button type="submit">通常フォームで送信</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>ダイアログの確定後だけ POST し、結果欄を置き換えます</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>サーバーが受け取る値</th><th>応答と画面更新</th></tr></thead>
+      <tbody>
+      <tr><td>確認・入力を確定</td><td>POST /examples/dialogs-browser</td><td>UTF-8 URI エンコードした <code>HX-Prompt</code> ヘッダー。CSRF は共通処理がヘッダーに追加</td><td>200・結果欄を置換</td></tr>
+      <tr><td>入力をキャンセル</td><td>要求なし</td><td>値は送信されない</td><td>通常フォームと結果欄を維持</td></tr>
+      <tr><td>入力後の確認を拒否</td><td>要求なし</td><td>値は送信されない。入力値は通常フォームに保持</td><td>結果欄は維持</td></tr>
+      <tr><td>通常フォームで送信</td><td>POST /examples/dialogs-browser</td><td>メッセージ、確認欄、CSRF hidden 項目</td><td>200・ページ全体</td></tr>
+      <tr><td>空欄・100文字超過・確認なし</td><td>同上</td><td>サーバーで入力と確認を検証</td><td>422・htmx は結果欄、通常フォームはページ全体にエラー</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>hx-prompt</code> の入力値は要求本文ではなく <code>HX-Prompt</code> ヘッダーで送られます。外部 JavaScript はプロンプト値を通常フォームにも保持し、<code>htmx:configRequest</code> で実際のヘッダー値を UTF-8 の URI 表現にします。Controller がデコードし、htmx要求の成功時に通常フォームが送信後に編集されていなければ値を消去します。通信失敗時や応答待ち中に編集した値は通常フォームに残るため、再送できます。<code>hx-params="none"</code> により、他のフォーム値を同時送信しません。</li>
+      <li><code>hx-prompt</code> の入力は <code>htmx:prompt</code> イベント時に通常フォームへコピーされ、その後に確認ダイアログが表示されます。確認を拒否するとPOSTと結果欄の更新はありませんが、入力した値は通常フォームに残ります。入力ダイアログ自体をキャンセルした場合はフォーム値も結果欄も変わりません。ブラウザー標準ダイアログは表示中に他の画面操作を止めます。</li>
+      <li>入力値はサーバーで空欄・文字数を検証し、Thymeleaf の <code>th:text</code> でエスケープして表示します。CSRF が有効で、通常フォームも確認欄をサーバーで検証します。</li>
+      <li>422 は結果欄だけを差し替え、共有 JavaScript がエラーを読み上げ状態にも通知します。その他のHTTPエラー・通信失敗は共通通知に表示します。</li>
+    </ul>
+    <h2>異常系と制約</h2>
+    <p>プロンプトは100文字以内の空でない文字列を受け付けます。文字数はJavaの <code>String.length()</code> と同じUTF-16コード単位で数え、100文字の境界は有効です。空欄と101文字以上は422です。通常フォームで送信確認がない場合も422です。値は画面にだけ表示し、保存・他利用者との共有・実際の業務処理はしません。</p>
+    <p>ブラウザー標準ダイアログの文言・見た目はブラウザーとOSが決めます。高度なレイアウト・非同期操作・アクセシブルなカスタムダイアログが必要な場合は、公式の別例「Dialogs - Custom」等を検討してください。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/dialogs/">htmx 公式 Dialogs</a> の <code>hx-confirm</code> / <code>hx-prompt</code> と <code>HX-Prompt</code> の考え方を使います。日本語対応のため、公式例にはない外部 JavaScript による UTF-8 URI エンコードとサーバー側デコードを加えました。表示するのは架空のメッセージで、出力エスケープ・入力上限・422・CSRF・通常フォーム・日本語解説も追加しています。追加依存はありません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="pageRows">
+  <tr th:each="agent : ${agents}">
+    <td th:text="${agent.name}"></td>
+    <td th:text="${agent.team}"></td>
+  </tr>
+  <tr id="load-more" th:if="${hasMore}">
+    <td colspan="2">
+      <form method="get" th:action="@{/examples/click-to-load}"
+            th:attr="hx-get=@{/examples/click-to-load}"
+            hx-target="#load-more" hx-swap="outerHTML" hx-sync="this:drop"
+            hx-disabled-elt="find button" hx-indicator="#loading">
+        <input type="hidden" name="page" th:value="${nextPage}">
+        <button type="submit">続きを読み込む</button>
+      </form>
+    </td>
+  </tr>
+</th:block>
+</body>
+</html>

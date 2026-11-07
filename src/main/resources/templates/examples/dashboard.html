@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>ダッシュボードの定期更新 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <link rel="stylesheet" th:href="@{/css/dashboard.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/dashboard-polling.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('dashboard')}"></aside>
+<main>
+  <h1>ダッシュボード部品の定期更新</h1>
+  <p>架空の注文・在庫カードを5秒ごとに別々のGETで取得します。データは時刻から作る学習用の値で、実在の業務情報ではありません。</p>
+  <ol>
+    <li>各カードの「今すぐ更新」で、他方のカードを変えずに更新できることを確認します。</li>
+    <li>「自動更新を一時停止する」「自動更新を再開する」で定期取得を制御します。</li>
+    <li>開発者ツールでカードの要求を失敗させ、直前の値と取得時刻が残り、自動取得が止まることを確認します。接続を戻してカードを手動更新すると復帰します。</li>
+    <li>タブを非表示にして要求が止まり、表示に戻すと最新値を取得することを確認します。</li>
+  </ol>
+  <noscript><p>JavaScript が無効な場合も、架空の現在値を含むページを表示できます。カードのリンクからページ全体を再取得できますが、自動更新・カードだけの更新は行いません。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <section aria-labelledby="auto-refresh-title">
+    <h2 id="auto-refresh-title">自動更新の制御</h2>
+    <button id="dashboard-auto-toggle" type="button">自動更新を一時停止する</button>
+    <p id="dashboard-auto-status" role="status" aria-live="polite">表示中に5秒ごとに取得します。自動更新は表示中の累計5分で終了します。</p>
+    <p>一時停止中・上限到達後・通信失敗後も、各カードの手動更新は利用できます。</p>
+  </section>
+  <div class="dashboard-grid">
+    <article id="orders-panel" class="dashboard-card" data-dashboard-card data-dashboard-poll
+             data-dashboard-label="注文カード"
+             hx-get="/examples/dashboard/summary/orders"
+             hx-trigger="every 5s, dashboard-refresh"
+             hx-target="#orders-content" hx-swap="innerHTML"
+             hx-sync="closest [data-dashboard-card]:drop"
+             hx-indicator="#orders-loading"
+             aria-labelledby="orders-title">
+      <h2 id="orders-title">注文の状況</h2>
+      <div id="orders-content" data-dashboard-content>
+        <th:block th:replace="~{examples/dashboard-cards :: ordersContent}"></th:block>
+      </div>
+      <p class="dashboard-stale" data-dashboard-stale role="status" hidden>
+        最新の取得に失敗しました。表示中の値は前回成功時のものです。自動取得を停止しています。
+      </p>
+      <p id="orders-loading" class="htmx-indicator" aria-hidden="true">注文カードを取得しています…</p>
+      <a href="/examples/dashboard/summary/orders"
+         hx-get="/examples/dashboard/summary/orders" hx-trigger="click"
+         hx-target="#orders-content" hx-swap="innerHTML"
+         hx-sync="closest [data-dashboard-card]:drop">注文カードを今すぐ更新</a>
+    </article>
+    <article id="inventory-panel" class="dashboard-card" data-dashboard-card data-dashboard-poll
+             data-dashboard-label="在庫カード"
+             hx-get="/examples/dashboard/summary/inventory"
+             hx-trigger="every 5s, dashboard-refresh"
+             hx-target="#inventory-content" hx-swap="innerHTML"
+             hx-sync="closest [data-dashboard-card]:drop"
+             hx-indicator="#inventory-loading"
+             aria-labelledby="inventory-title">
+      <h2 id="inventory-title">在庫の状況</h2>
+      <div id="inventory-content" data-dashboard-content>
+        <th:block th:replace="~{examples/dashboard-cards :: inventoryContent}"></th:block>
+      </div>
+      <p class="dashboard-stale" data-dashboard-stale role="status" hidden>
+        最新の取得に失敗しました。表示中の値は前回成功時のものです。自動取得を停止しています。
+      </p>
+      <p id="inventory-loading" class="htmx-indicator" aria-hidden="true">在庫カードを取得しています…</p>
+      <a href="/examples/dashboard/summary/inventory"
+         hx-get="/examples/dashboard/summary/inventory" hx-trigger="click"
+         hx-target="#inventory-content" hx-swap="innerHTML"
+         hx-sync="closest [data-dashboard-card]:drop">在庫カードを今すぐ更新</a>
+    </article>
+  </div>
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>2つのカードはそれぞれ独立して取得します</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答と差し替え先</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/dashboard</td><td>200・2カードを含むページ全体</td></tr>
+      <tr><td>注文カードの自動・手動更新</td><td>GET /examples/dashboard/summary/orders</td><td>htmx は注文カードの値だけを差し替え。通常アクセスは全体ページ</td></tr>
+      <tr><td>在庫カードの自動・手動更新</td><td>GET /examples/dashboard/summary/inventory</td><td>htmx は在庫カードの値だけを差し替え。通常アクセスは全体ページ</td></tr>
+      <tr><td>一時停止・再開</td><td>ブラウザー内で制御。再開時は各カードにGET</td><td>停止中は要求なし。再開すると正常な2カードを直ちに個別取得</td></tr>
+      <tr><td>HTTPエラー・通信断・タイムアウト</td><td>該当カードのGET</td><td>値と取得時刻を保持し、カード単位で自動取得を止めて通知。手動更新で復帰</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>hx-trigger="every 5s"</code> は各カードに置き、差し替え対象は値を含む内側の領域だけです。ポーリングを設定した外枠や初回取得トリガーを応答に含めないため、入れ子や再帰的な取得は起きません。</li>
+      <li><code>hx-sync="closest [data-dashboard-card]:drop"</code> により、同じカードの自動・手動要求が重なったときは後続要求を捨てます。もう一方のカードは独立して取得できます。</li>
+      <li>外部 JavaScript が表示中の累計時間を計り、5分で自動取得を止めます。非表示タブでは要求を抑止し、表示に戻ると各カードを再取得します。手動のリンクは上限後も使えます。</li>
+      <li>通信エラー後は失敗したカードだけ自動取得を停止します。前回値と最終成功時刻を残し、手動更新が成功すれば上限時間内で自動取得も再開します。エラー時に連続で自動再試行はしません。</li>
+      <li>注文数・在庫数・状態は30秒単位の時刻から算出し、GETの回数やセッション状態で変化しません。取得時刻はサーバーのローカル時刻です。</li>
+      <li>個別取得は必要なカードだけを更新でき、一方の失敗が他方へ波及しません。その代わり要求数はカード数に応じて増えます。一括取得なら要求を減らし同じ時点の値を返しやすくなりますが、不要なデータも送り、失敗が複数カードへ影響します。</li>
+    </ul>
+    <h2>状態・異常系・制約</h2>
+    <p>固定の計算式から作る架空データです。DB、外部 API、セッション保存、バックグラウンド処理はありません。GET は参照のみで、時刻が進むことで表示値が変わる場合があります。</p>
+    <p>自動更新はページが表示されている間だけ時間を計り、利用者の一時停止中と非表示タブでは停止します。表示中の累計5分に達すると自動では再開しません。カード単位の手動更新は引き続き利用できます。</p>
+    <p>htmx のタイムアウトは10秒です。通信断・HTTPエラー・タイムアウトでは最後に成功した値を保ち、該当カードの自動取得を止めます。接続を戻し、カードの手動更新で復帰してください。JavaScript 無効時は自動取得できません。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/attributes/hx-trigger/#polling">htmx 公式 hx-trigger のポーリング説明</a>を参考に、複数カードを独立して取得する例を作っています。公式の基本例に対して、自動更新の上限・一時停止・非表示タブ制御・手動更新・失敗からの復帰・読み上げ頻度への配慮を追加しました。追加依存はありません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

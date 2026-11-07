@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="summary">
+  <p><strong th:text="${summary['value']}">固定の値</strong></p>
+  <p th:text="${summary['detail']}">学習用の固定データです。</p>
+</div>
+</body>
+</html>

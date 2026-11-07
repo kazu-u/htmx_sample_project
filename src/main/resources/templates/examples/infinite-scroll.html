@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>スクロールして続きを取得 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('infinite-scroll')}"></aside>
+<main>
+  <h1>スクロールして続きを取得</h1>
+  <p>一覧内をスクロールし、末尾の操作行が見えると次の3件を取得します。「無限スクロール」という名前ですが、この例は架空の書籍9件で終了します。</p>
+  <ol>
+    <li>枠内の一覧を下へスクロールします。操作行が見えると続きを取得します。</li>
+    <li>自動取得を待たず、操作行のボタンから手動取得もできます。失敗時は同じボタンで再試行します。</li>
+    <li>全9件に到達すると終了案内になり、それ以上は取得しません。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時は、ボタンで指定ページまでの一覧全体を表示します。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">続きを取得しています…</p>
+  <section data-request-region aria-labelledby="books-title">
+    <h2 id="books-title">架空の書籍一覧</h2>
+    <p id="scroll-help">一覧枠にTabで移動し、矢印・PageDownでスクロールできます。ボタンでも取得できます。</p>
+    <div id="scroll-window" class="scroll-window" role="region" aria-label="スクロールできる書籍一覧"
+         aria-describedby="scroll-help" tabindex="0">
+      <table class="scroll-table">
+        <caption>固定9件、1回3件。すべて架空の書籍です</caption>
+        <thead><tr><th scope="col">書籍名</th><th scope="col">分類</th></tr></thead>
+        <tbody id="scroll-books">
+          <th:block th:replace="~{examples/infinite-scroll-rows :: pageRows}"></th:block>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>通常アクセスは指定ページまで、htmxは次ページの行だけを返す</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答・差し替え</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/infinite-scroll</td><td>200・全体ページ、最初の3件</td></tr>
+      <tr><td>自動・手動取得</td><td>GET /examples/infinite-scroll?page=2（または3）</td><td>200・操作行を次の3行と次の操作行に置換。最終は終了行</td></tr>
+      <tr><td>通常フォーム・直接アクセス</td><td>同上</td><td>200・指定ページまでの累積一覧を全体表示</td></tr>
+      <tr><td>範囲外・非数値</td><td>page=0 / 4 / abc</td><td>404 / 400。既存一覧を差し替えない</td></tr>
+      <tr><td>通信断・タイムアウト・HTTPエラー</td><td>同上</td><td>通知し一覧・操作行を保持。ボタンで再試行</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>hx-trigger="intersect once root:#scroll-window, submit"</code> は、操作フォームが一覧枠内で見えた時の1回の取得と、手動送信を指定します。条件式は使いません。</li>
+      <li><code>hx-target="closest tr"</code> と <code>hx-swap="outerHTML"</code> で操作行をデータと次の操作行に置換します。最後には取得トリガーを返しません。</li>
+      <li><code>hx-sync="closest tbody:drop"</code> で同じ一覧の要求を同期し、取得中の重複を捨てます。取得中は手動ボタンを無効にします。</li>
+      <li>取得失敗時はintersectを自動で繰り返しません。前回の行と手動ボタンを残し、10秒のタイムアウト後も利用者が再試行できます。</li>
+      <li>自動取得はフォーカスを奪いません。手動ボタンにフォーカスがあった時だけ、成功後の次のボタンまたは終了行へ移します。</li>
+      <li>次のボタンへのフォーカスで末尾が見えると、そのページも自動取得される場合があります。取得中に一覧以外へフォーカスを移した場合は、その位置を優先します。</li>
+      <li>Controllerは固定リストから行を切り出し、Thymeleafが断片を生成します。通常フォームはページ番号をGET送信し、読み込んだ行を累積表示します。</li>
+    </ul>
+    <h2>状態・異常系・制約</h2>
+    <ul>
+      <li>業務状態はセッションに保存しません。GETは参照だけで、要求回数でデータを変更しません。最大3ページ・9件でDOMの増加を止めます。</li>
+      <li>再読み込みはURLのページまでの表示に戻ります。htmx取得ではURL・履歴を追加しません。通常遷移ではpage付きURLを共有できます。</li>
+      <li>共通CSRF用セッションの寿命は無通信20分、全体100個です。GET取得でも他サンプルの更新要求のCSRF・CSP・同一オリジン保護は維持します。</li>
+      <li>開発者ツールで通信を遮断・低速化し、一覧保持・通知・再試行を確認できます。サーバーに故障用パラメーターや待機処理は追加しません。</li>
+      <li>ボタンを操作するために末尾へ移動すると、先に自動取得が始まる場合があります。短い画面・拡大表示では枠内をスクロールしてください。</li>
+    </ul>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/infinite-scroll/">htmx 公式 Infinite Scroll</a> の末尾が見えた時に次の行を取得する考え方を参考に独自実装しています。</p>
+    <p>公式例のページ全体のrevealed・afterendに代え、独立したスクロール枠のintersect onceと操作行の置換を使います。有限データ、終端、重複抑止、手動再試行、通常フォーム、フォーカス・日本語解説を追加しました。DB・外部API・追加依存・アニメーションはありません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section id="selection-result" th:fragment="selectionResult(oob)"
+         th:attr="hx-swap-oob=${oob ? 'outerHTML' : null}" aria-live="polite">
+  <h2>選択結果</h2>
+  <p th:if="${selection != null}">
+    選択した地域:
+    <span th:text="${selection.prefectureName}"></span>
+    <span th:text="${selection.cityName}"></span>
+  </p>
+  <p th:if="${selectionError != null}" id="selection-error" class="field-error"
+     role="alert" data-selection-error th:text="${selectionError}"></p>
+  <p th:if="${selection == null and selectionError == null}">まだ結果を確認していません。</p>
+</section>
+
+<th:block th:fragment="selectionResponse">
+  <th:block th:replace="~{examples/value-select-result :: selectionResult(false)}"></th:block>
+  <th:block th:if="${prefectureError != null}">
+    <th:block th:replace="~{examples/value-select-prefecture :: prefectureField(true)}"></th:block>
+  </th:block>
+  <th:block th:if="${selectionError != null}">
+    <th:block th:replace="~{examples/value-select-city :: cityField(true)}"></th:block>
+  </th:block>
+</th:block>
+
+<th:block th:fragment="loadCitiesResponse">
+  <th:block th:replace="~{examples/value-select-result :: selectionResult(false)}"></th:block>
+  <th:block th:replace="~{examples/value-select-city :: cityField(true)}"></th:block>
+  <th:block th:if="${prefectureError != null}">
+    <th:block th:replace="~{examples/value-select-prefecture :: prefectureField(true)}"></th:block>
+  </th:block>
+</th:block>
+</body>
+</html>

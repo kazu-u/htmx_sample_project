@@ -1,0 +1,47 @@
+:host {
+  display: block;
+}
+
+article {
+  border: 1px solid #bac8d3;
+  border-radius: .5rem;
+  padding: 1rem;
+  color: #172b3a;
+  background: #fff;
+}
+
+h3 {
+  margin-top: 0;
+}
+
+button {
+  font: inherit;
+  color: #fff;
+  background: #075b8d;
+  padding: .5rem 1rem;
+  border: 2px solid #075b8d;
+  border-radius: .25rem;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
+button:focus-visible {
+  outline: 3px solid #b45b00;
+  outline-offset: 3px;
+}
+
+button.htmx-request::after {
+  content: "（取得中）";
+}
+
+[data-error] {
+  color: #9b1717;
+}
+
+.summary-result {
+  min-height: 3rem;
+}

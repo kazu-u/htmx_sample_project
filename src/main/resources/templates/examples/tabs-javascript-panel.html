@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<section th:fragment="panel(selectedTab)" id="tabs-javascript-panel" class="tab-panel"
+         role="tabpanel" tabindex="0"
+         th:attr="aria-labelledby=|tabs-javascript-tab-${selectedTab.id}|">
+  <h3 th:text="${selectedTab.heading}">概要</h3>
+  <p th:text="${selectedTab.description}">説明</p>
+</section>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>キーボードショートカット | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/keyboard-shortcuts.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('keyboard-shortcuts')}"></aside>
+<main>
+  <h1>キーボードショートカット</h1>
+  <p>画面上のボタンと Alt+Shift+D のどちらからも、同じ GET 要求で案内パネルを取得します。</p>
+  <ol>
+    <li>ボタンを押し、説明用パネルだけが入れ替わることを確認します。</li>
+    <li>入力欄の外にフォーカスを移し、Alt+Shift+D を押して同じ操作を行います。</li>
+    <li>入力欄・編集可能領域にフォーカスして同じキーを押し、ショートカットが発火しないことを確認します。</li>
+    <li>開発者ツールで要求を遮断し、失敗通知が出て現在のパネルが残ることを確認します。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時はボタンから通常の GET ページを開けます。キーボードショートカットと部分差し替えは利用できません。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+
+  <section id="shortcut-demo" aria-labelledby="shortcut-demo-title" data-request-region>
+    <h2 id="shortcut-demo-title">操作を試す</h2>
+    <p id="shortcut-loading" class="htmx-indicator" role="status">案内を取得しています…</p>
+    <div>
+      <label for="shortcut-test-input">誤発火防止を試す入力欄</label>
+      <input id="shortcut-test-input" type="text" autocomplete="off">
+      <p>ここにフォーカスがある間は Alt+Shift+D を押しても要求しません。入力内容は送信しません。</p>
+    </div>
+    <form id="shortcut-form" method="get" th:action="@{/examples/keyboard-shortcuts/action}"
+          th:attr="hx-get=@{/examples/keyboard-shortcuts/action}"
+          hx-target="#shortcut-result" hx-swap="outerHTML" hx-sync="this:drop"
+          hx-indicator="#shortcut-loading" hx-disabled-elt="find button">
+      <button id="shortcut-submit" type="submit">案内を取得する（Alt+Shift+D）</button>
+    </form>
+    <section id="shortcut-result" th:fragment="result(executed)"
+             aria-labelledby="shortcut-result-title">
+      <h3 id="shortcut-result-title">取得結果</h3>
+      <p th:if="${executed}">案内を取得しました。これは参照 GET で、サーバー状態は変更していません。</p>
+      <p th:unless="${executed}">ボタンまたは Alt+Shift+D で、サーバーから案内を取得できます。</p>
+    </section>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>ショートカットとボタンは同じフォーム送信を行います</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答・差し替え</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/keyboard-shortcuts</td><td>200・ページ全体と初期案内</td></tr>
+      <tr><td>ボタン・Alt+Shift+D</td><td>GET /examples/keyboard-shortcuts/action</td><td>200・htmx は結果パネルだけを差し替え。通常送信は結果入りの全体ページ</td></tr>
+      <tr><td>HTTP エラー・通信断・タイムアウト</td><td>同上</td><td>エラーを通知し、現在のパネルを保持</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>フォームは標準 GET 送信を持ち、JavaScript が有効なら htmx が応答を結果パネルに差し替えます。無効時は結果を含むページを開きます。</li>
+      <li>外部 JavaScript は Alt+Shift+D を検出すると同じフォームを送信します。htmx の条件式やインラインイベント属性は使いません。</li>
+      <li>入力欄・編集可能領域・開いたダイアログ内、キー入力の変換中、修飾キーの組み合わせ違いではショートカットを無視します。</li>
+      <li>通信中表示、二重取得の抑止、エラー通知は共通 JavaScript と htmx 属性で行います。失敗時は応答断片を差し替えません。</li>
+    </ul>
+    <h2>状態・制約</h2>
+    <p>固定の案内だけを使います。要求は状態を変更しない GET で、DB・セッション保存・外部 API・追加依存はありません。ショートカットはこのページ内だけで動作します。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/keyboard-shortcuts/">htmx 公式 Keyboard Shortcuts</a> のグローバルキー操作とボタンの併用を参考にしています。公式例の POST と <code>hx-trigger</code> 内の条件式は採用せず、状態を変更しない GET と外部 JavaScript のキー判定に置き換えています。入力中の誤発火防止、通常フォーム代替、通信失敗時の通知を追加しています。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

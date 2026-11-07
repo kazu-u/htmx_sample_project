@@ -1,0 +1,21 @@
+#file-upload-input-form {
+  display: grid;
+  justify-items: start;
+  gap: .75rem;
+  max-width: 40rem;
+}
+
+#upload-input-file {
+  max-width: 100%;
+}
+
+#upload-input-file-error,
+#upload-input-title-error {
+  color: #8b1e1e;
+}
+
+@media (max-width: 40rem) {
+  #file-upload-input-form button {
+    width: 100%;
+  }
+}

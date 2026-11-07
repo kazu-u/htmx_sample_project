@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>独自ダイアログ | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <link rel="stylesheet" th:href="@{/css/dialogs-custom.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/dialogs-custom.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('dialogs-custom')}"></aside>
+<main>
+  <h1>独自ダイアログ</h1>
+  <p>標準の <code>&lt;dialog&gt;</code> 要素に、htmx で取得した案内を表示します。UI ライブラリやインラインスクリプトは使いません。</p>
+  <ol>
+    <li>「案内をダイアログで開く」を選び、取得した内容がモーダルで開くことを確認します。</li>
+    <li>閉じるボタンまたは Escape キーで閉じ、フォーカスが起動ボタンに戻ることを確認します。</li>
+    <li>JavaScript を無効にした場合は、下のリンクから同じ案内を通常ページで開きます。</li>
+  </ol>
+  <noscript><p>JavaScript が無効なため、ダイアログは開きません。<a th:href="@{/examples/dialogs-custom/detail}">案内をページで開く</a>を利用してください。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">案内を取得しています…</p>
+
+  <section aria-labelledby="demo-title" data-request-region>
+    <h2 id="demo-title">モーダルを試す</h2>
+    <button id="open-details" type="button"
+            th:attr="hx-get=@{/examples/dialogs-custom/detail}"
+            hx-target="#dialog-content" hx-swap="innerHTML"
+            hx-indicator="#loading" hx-sync="this:drop" hx-disabled-elt="this">
+      案内をダイアログで開く
+    </button>
+    <dialog id="details-dialog" aria-labelledby="dialog-title">
+      <h2 id="dialog-title">学習用の案内</h2>
+      <div id="dialog-content" aria-live="polite">
+        <p>案内はまだ取得していません。</p>
+      </div>
+      <form method="dialog">
+        <button type="submit" autofocus data-dialog-close>閉じる</button>
+      </form>
+    </dialog>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>案内は GET で取得し、ダイアログの中身だけを置き換えます</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答・画面更新</th></tr></thead>
+      <tbody>
+      <tr><td>案内をダイアログで開く</td><td>GET /examples/dialogs-custom/detail</td><td>200・案内断片で dialog-content を置換し、完了後にモーダルを開く</td></tr>
+      <tr><td>閉じるボタン・Escape</td><td>要求なし</td><td>標準 dialog を閉じ、外部 JavaScript が起動ボタンへフォーカスを戻す</td></tr>
+      <tr><td>JavaScript 無効時の案内</td><td>GET /examples/dialogs-custom/detail</td><td>200・同じ案内を含むページ全体</td></tr>
+      <tr><td>HTTP エラー・通信断・タイムアウト</td><td>GET /examples/dialogs-custom/detail</td><td>成功として扱わず、共通通知を表示。ダイアログは開かない</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>showModal()</code> がモーダル表示、背後の操作抑止、ダイアログ内へのフォーカス移動を提供します。外部 JavaScript は成功した差し替え後に開き、Escape キーを明示的に閉じる操作へつなぎます。</li>
+      <li><code>form method="dialog"</code> は送信リクエストを作らずに閉じる標準 HTML の仕組みです。<code>close</code> イベントでは、外部 JavaScript が要求時に記録した起動要素へフォーカスを戻します。</li>
+      <li>htmx の応答は `HX-Request` に応じて断片または全ページを返し、<code>Vary: HX-Request</code> でキャッシュの混同を防ぎます。ヘッダー値は認可・検証の省略条件にしません。</li>
+      <li>取得内容は固定の架空案内です。GET は参照のみで、状態の変更・保存はありません。失敗時に自動再試行は行わず、起動ボタンから再試行できます。</li>
+    </ul>
+    <h2>異常系と制約</h2>
+    <p>取得失敗・タイムアウトでは既存ページを維持して共通通知を表示します。ダイアログは正常な差し替えが完了するまで開きません。ネイティブのダイアログ表示・フォーカス挙動はブラウザーに依存します。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/modal-custom/">htmx 公式 Dialogs - Custom</a> は独自オーバーレイと Hyperscript を使います。この例では依存追加と独自のフォーカス管理を避けるため、標準 <code>&lt;dialog&gt;</code> のモーダル・Escape・フォーカス動作を使い、外部 JavaScript から htmx の差し替え後に開きます。閉じるボタン、通常ページ代替、エラー通知、日本語解説を加えています。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

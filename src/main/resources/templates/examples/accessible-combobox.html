@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>候補から担当者を選択 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/accessible-combobox.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('accessible-combobox')}"></aside>
+<main>
+  <h1>候補から担当者を選択</h1>
+  <p>名前または部署を入力し、サーバーから返る候補をキーボードやポインターで選びます。候補以外の文字列は送信できません。</p>
+  <ol>
+    <li>「佐藤」「企画」などを入力し、300ms後に候補が表示されることを確認します。</li>
+    <li>下矢印・上矢印で候補を移動し、Enterで選択します。Escapeで候補を閉じます。</li>
+    <li>「選択を確定する」を押し、サーバーが候補IDを照合した結果を確認します。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時は検索後にページ内の選択欄から担当者を選び、もう一度送信してください。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="candidate-loading" class="htmx-indicator" role="status">候補を取得しています…</p>
+  <form id="combobox-form" method="get" novalidate th:action="@{/examples/accessible-combobox}"
+        th:object="${comboboxForm}">
+    <label for="candidate-query">担当者名または部署（60文字以内）</label>
+    <input id="candidate-query" type="search" th:field="*{query}" maxlength="60"
+           autocomplete="off" aria-describedby="candidate-help query-error"
+           th:attr="aria-invalid=${queryError}, hx-get=@{/examples/accessible-combobox/candidates}, data-autosearch=${autoSearchCandidates}"
+           hx-trigger="combobox-search" hx-target="#candidate-region" hx-swap="outerHTML"
+           hx-sync="this:replace" hx-indicator="#candidate-loading">
+    <p id="candidate-help">名前または部署の部分一致です。架空データのみを使います。入力中のIME変換は確定後に検索します。</p>
+    <p id="query-error" class="field-error"
+       th:text="${queryError ? '検索語は60文字以内で入力してください。' : ''}"></p>
+    <input id="selected-contact-id" type="hidden" name="contactId"
+           th:value="${selectedContact != null ? selectedContact.id : ''}">
+    <div id="candidate-region" th:fragment="candidateRegion"
+         th:attr="hidden=${candidateRegionHidden ? 'hidden' : null}">
+      <ul id="candidate-list" class="combobox-options" role="listbox" aria-label="担当者候補">
+        <li th:each="candidate : ${candidates}" role="option" tabindex="-1"
+            th:id="|candidate-${candidate.id}|" th:attr="data-contact-id=${candidate.id}, data-label=${candidate.name}"
+            aria-selected="false">
+          <span th:text="${candidate.name}"></span>
+          <span class="combobox-department" th:text="${candidate.department}"></span>
+        </li>
+      </ul>
+      <p id="candidate-message"
+         th:if="${queryError}" data-candidate-error>検索語は60文字以内で入力してください。</p>
+      <p id="candidate-message"
+         th:if="${!queryError && #lists.isEmpty(candidates)}">候補はありません。名前または部署を確認してください。</p>
+      <p id="candidate-message"
+         th:if="${!queryError && !#lists.isEmpty(candidates)}"
+         th:text="|候補は${#lists.size(candidates)}件です。|"></p>
+    </div>
+    <div class="combobox-actions">
+      <button type="submit" name="action" value="search">候補を検索</button>
+      <button type="submit" name="action" value="choose">選択を確定する</button>
+    </div>
+    <noscript>
+      <label for="candidate-fallback">担当者を選択</label>
+      <select id="candidate-fallback" name="contactIdFallback" aria-describedby="selection-error">
+        <option value="">候補を選択してください</option>
+        <option th:each="candidate : ${candidates}" th:value="${candidate.id}"
+                th:text="|${candidate.name}（${candidate.department}）|"></option>
+      </select>
+    </noscript>
+  </form>
+  <p id="combobox-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">選択結果を確認しています…</p>
+  <section id="selection-result" aria-labelledby="selection-title" data-request-region
+           th:attr="aria-busy=${false}">
+    <h2 id="selection-title">選択結果</h2>
+    <p class="field-error" id="selection-error" role="alert" tabindex="-1"
+       th:attr="hidden=${selectionError == null ? 'hidden' : null}"
+       th:text="${selectionError}" data-selection-error></p>
+    <p th:if="${selectedContact}" data-selection-success tabindex="-1">
+      <span th:text="${selectedContact.name}"></span>
+      （<span th:text="${selectedContact.department}"></span>）を選択しました。
+    </p>
+    <p th:if="${selectedContact == null && selectionError == null}">まだ担当者は確定していません。</p>
+  </section>
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>固定の架空データを参照し、サーバー状態は変更しません</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答と表示</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/accessible-combobox</td><td>200・ページ全体。未選択状態を表示</td></tr>
+      <tr><td>通常フォーム検索</td><td>GET /examples/accessible-combobox?query=検索語&amp;action=search</td><td>200・ページ全体。JavaScript 無効時はselectを表示し、有効時は検索語を引き継いで候補を取得</td></tr>
+      <tr><td>入力後300ms、またはIME確定後</td><td>GET /examples/accessible-combobox/candidates?query=検索語</td><td>200・候補領域だけを置換。最大10件</td></tr>
+      <tr><td>検索語が60文字超</td><td>ページGETまたは候補取得GET</td><td>422・ページ全体または候補領域にエラーを表示</td></tr>
+      <tr><td>候補選択の確定（JavaScript有効）</td><td>GET /examples/accessible-combobox?query=名前&amp;contactId=ID&amp;action=choose</td><td>200・ページ全体。固定データのIDを照合</td></tr>
+      <tr><td>候補選択の確定（JavaScript無効）</td><td>GET /examples/accessible-combobox?query=検索語&amp;contactIdFallback=ID&amp;action=choose</td><td>200・ページ全体。固定データのIDを照合</td></tr>
+      <tr><td>選択IDが未指定・不正</td><td>いずれかの選択確定GET</td><td>422・エラーを表示し、再選択できる</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>role="combobox"</code> と <code>aria-controls</code> / <code>aria-expanded</code> / <code>aria-activedescendant</code> は外部JavaScriptが候補領域の状態に合わせて設定します。</li>
+      <li>入力欄は候補名を含む表示用テキスト、hiddenのIDは選択済みの値です。文字を編集するとIDを消し、候補を選び直すまで送信できません。</li>
+      <li>JavaScript 無効時は同じGETフォームで候補を絞り、通常のselectから選びます。選択結果もサーバーで確認します。</li>
+      <li>固定12件から名前・部署を部分一致検索し、1応答あたり10件まで返します。DB・外部API・セッション保存はありません。</li>
+    </ul>
+    <h2>異常系と復帰</h2>
+    <p>開発者ツールで61文字の検索語や存在しない候補IDを送ると422です。入力値を残し、正しい検索語や候補で再送信できます。通信断・HTTPエラー・10秒のタイムアウトでは共通通知を表示し、現在の入力を保って再試行できます。</p>
+    <h2>アクセシビリティと制約</h2>
+    <p>矢印キーで候補を移動し、Enterで候補を選びます。Escapeは候補を閉じ、Tabは通常のフォーカス移動を行います。IME変換中は要求せず、応答が古い候補一覧を置き換えないようにします。候補・選択状態・エラーは読み上げ可能な状態で通知します。</p>
+    <p>自由入力、複数選択、ページ分割、永続化は扱いません。候補検索のGETには検索語がURL・履歴・アクセスログ等に残り得るため、架空データ以外を入力しないでください。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/active-search/">htmx公式 Active Search</a> の入力待機と <a href="https://htmx.org/examples/value-select/">Value Select</a> のサーバー描画候補を参考に、検索結果一覧ではなく単一候補の選択に焦点を当てます。<a href="https://www.w3.org/WAI/ARIA/apg/patterns/combobox/">WAI-ARIA Authoring Practices の Combobox Pattern</a> を参考にキーボード操作とARIA状態を構成し、追加依存は使いません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

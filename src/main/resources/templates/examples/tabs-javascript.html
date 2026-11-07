@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>タブ（JavaScript） | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <link rel="stylesheet" th:href="@{/css/tabs-hateoas.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/tabs-javascript.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('tabs-javascript')}"></aside>
+<main>
+  <h1>タブ（JavaScript）</h1>
+  <p>サーバーは選択されたタブの内容を返し、JavaScript が応答後に選択中の表示を更新します。</p>
+  <ol>
+    <li>タブを選び、URLを変えずに内容と選択表示が一緒に変わることを確認します。</li>
+    <li>htmx でタブを選んだ後は URL が変わらず、ベース URL を再読み込みすると概要に戻ることを確認します。</li>
+    <li>左右矢印でフォーカスを移動し、Enter または Space で選択します。Home / End は先頭・末尾へ移動します。</li>
+  </ol>
+  <noscript><p>JavaScript が無効でも、各タブのリンクから選択した内容を含むページ全体を表示できます。矢印キーのタブ間移動は利用できません。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="tabs-javascript-loading" class="htmx-indicator" role="status">タブの内容を取得しています…</p>
+
+  <section aria-labelledby="demo-title">
+    <h2 id="demo-title">タブを試す</h2>
+    <div data-request-region>
+      <nav id="tabs-javascript-list" class="tabs-list" role="tablist"
+           aria-label="学習用の案内" aria-orientation="horizontal">
+        <a th:each="tab : ${tabs}"
+           th:id="|tabs-javascript-tab-${tab.id}|"
+           th:href="@{/examples/tabs-javascript/tab/{tabId}(tabId=${tab.id})}"
+           th:attr="hx-get=@{/examples/tabs-javascript/tab/{tabId}(tabId=${tab.id})}, aria-selected=${tab.id == selectedTab.id}, aria-controls='tabs-javascript-panel'"
+           role="tab"
+           hx-target="#tabs-javascript-panel" hx-swap="outerHTML"
+           hx-sync="#tabs-javascript-panel:replace" hx-indicator="#tabs-javascript-loading"
+           th:text="${tab.label}">
+          概要
+        </a>
+      </nav>
+      <div id="tabs-javascript-panel"
+           th:replace="~{examples/tabs-javascript-panel :: panel(selectedTab=${selectedTab})}"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>選択操作で内容だけを取得し、選択状態はブラウザー側で更新します</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答・画面更新</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/tabs-javascript</td><td>200・ページ全体。概要を初期選択</td></tr>
+      <tr><td>タブ選択</td><td>GET /examples/tabs-javascript/tab/{tabId}</td><td>200・htmx 要求では選択内容だけを差し替え、JavaScript が選択表示を更新。URL履歴は変更しない</td></tr>
+      <tr><td>通常リンク・JavaScript 無効</td><td>GET /examples/tabs-javascript/tab/{tabId}</td><td>200・選択したタブを含むページ全体</td></tr>
+      <tr><td>存在しないタブ ID</td><td>GET /examples/tabs-javascript/tab/{tabId}</td><td>404。選択中のタブと表示を維持して通知</td></tr>
+      <tr><td>通信失敗・タイムアウト</td><td>同上</td><td>選択中のタブと表示を維持して通知。タブから再試行可能</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>通常のリンクに <code>hx-get</code> を加えます。JavaScript が無効ならブラウザーがページ全体を開き、htmx が有効なら内容だけを取得します。</li>
+      <li>サーバーは初期表示と通常ページで内容を選びます。部分応答には内容だけを返し、外部 JavaScript が成功後に <code>aria-selected</code>、<code>tabindex</code>、パネルの関連付けを更新します。</li>
+      <li>htmx による選択は URL やサーバー状態に保存されません。URL履歴・DB・セッション・外部 API は使わず、ベース URL を再読み込みすると概要に戻ります。通常リンクで開いたタブ別 URL はその内容を表示します。</li>
+      <li>全通信は固定データを参照する GET です。htmx の条件式やインラインイベント属性を使わず、安全設定 <code>allowEval: false</code> を維持します。</li>
+    </ul>
+    <h2>キーボードとアクセシビリティ</h2>
+    <p>左右矢印と Home / End はフォーカスだけを移動する手動選択方式です。Enter / Space で取得を開始し、成功応答後に選択状態を更新します。選択状態・タブパネルとの関係は <code>aria-selected</code>、<code>aria-controls</code>、<code>aria-labelledby</code> で示します。</p>
+    <h2>No.20 との違い・公式例との差分</h2>
+    <p><a href="https://htmx.org/examples/tabs-javascript/">htmx 公式 Tabs (Using JavaScript)</a> と同様に、選択された内容だけを取得して選択表示をクライアントで切り替えます。No.20 はサーバーが選択中の一覧と内容を返して URL 履歴にも状態を反映しますが、この例では外部 JavaScript が成功後に選択表示を更新し URL 履歴は変更しません。公式例のインライン <code>hx-on</code> と <code>let</code> 式は、CSP と <code>allowEval: false</code> を維持するため外部 JavaScript のイベント処理に置き換えています。通常リンクの全ページ代替、キーボード操作、エラー通知も追加しています。追加依存はありません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

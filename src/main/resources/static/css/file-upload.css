@@ -1,0 +1,32 @@
+#file-upload-form {
+  display: grid;
+  justify-items: start;
+  gap: .75rem;
+  max-width: 40rem;
+}
+
+#upload-file {
+  max-width: 100%;
+}
+
+.upload-progress {
+  display: grid;
+  gap: .4rem;
+  margin-block: 1rem;
+  max-width: 30rem;
+}
+
+#upload-progress {
+  width: 100%;
+  min-height: 1rem;
+}
+
+#upload-validation-error {
+  color: #8b1e1e;
+}
+
+@media (max-width: 40rem) {
+  #file-upload-form button {
+    width: 100%;
+  }
+}

@@ -1,0 +1,38 @@
+<tr th:fragment="taskRow(task)" th:id="|undoable-row-${task.id}|"
+    data-undoable-row th:attr="data-status=${task.status}">
+  <td th:text="${task.title}"></td>
+  <td th:text="${task.owner}"></td>
+  <td>
+    <span th:if="${task.status.name() == 'ACTIVE'}">登録中</span>
+    <span th:if="${task.status.name() == 'PENDING_DELETE'}">削除待ち</span>
+    <span th:if="${task.status.name() == 'DELETED'}">削除済み</span>
+  </td>
+  <td>
+    <form th:if="${task.status.name() == 'ACTIVE'}" method="post"
+          th:action="@{/examples/undoable-delete/{id}/delete(id=${task.id})}"
+          th:attr="hx-post=@{/examples/undoable-delete/{id}/delete(id=${task.id})}"
+          hx-target="closest tr" hx-swap="outerHTML" hx-sync="closest tr:drop"
+          hx-disabled-elt="find button" hx-indicator="#undoable-loading">
+      <input type="hidden" name="revision" th:value="${task.revision}">
+      <noscript>
+        <label class="confirmation-label">
+          <input type="checkbox" name="confirmDelete" value="true" required>
+          この作業を削除待ちにすることを確認
+        </label>
+      </noscript>
+      <button type="submit">削除待ちにする</button>
+    </form>
+    <form th:if="${task.status.name() == 'PENDING_DELETE'}" method="post"
+          th:action="@{/examples/undoable-delete/{id}/undo(id=${task.id})}"
+          th:attr="hx-post=@{/examples/undoable-delete/{id}/undo(id=${task.id})}"
+          hx-target="closest tr" hx-swap="outerHTML" hx-sync="closest tr:drop"
+          hx-disabled-elt="find button" hx-indicator="#undoable-loading">
+      <input type="hidden" name="revision" th:value="${task.revision}">
+      <p>30秒以内は取り消せます。</p>
+      <button type="submit">取り消す</button>
+    </form>
+    <p th:if="${task.status.name() == 'DELETED'}">取消期限を過ぎたため確定しました。</p>
+    <p th:if="${task.actionMessage}" data-action-notice role="status" aria-live="polite"
+       th:text="${task.actionMessage}"></p>
+  </td>
+</tr>

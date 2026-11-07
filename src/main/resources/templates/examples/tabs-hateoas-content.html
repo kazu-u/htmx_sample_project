@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div th:fragment="tabContent(tabs, selectedTab)" id="tab-interface" data-request-region>
+  <nav class="tabs-list" role="tablist" aria-label="学習用の案内" aria-orientation="horizontal">
+    <a th:each="tab : ${tabs}"
+       th:id="|tab-link-${tab.id}|"
+       th:href="@{/examples/tabs-hateoas/tab/{tabId}(tabId=${tab.id})}"
+       th:attr="hx-get=@{/examples/tabs-hateoas/tab/{tabId}(tabId=${tab.id})}, aria-selected=${tab.id == selectedTab.id}, aria-controls='tabpanel', tabindex=${tab.id == selectedTab.id ? 0 : -1}"
+       role="tab"
+       hx-target="#tab-interface" hx-swap="outerHTML" hx-push-url="true"
+       hx-sync="#tab-interface:replace" hx-indicator="#tabs-loading"
+       th:text="${tab.label}">
+      概要
+    </a>
+  </nav>
+  <section id="tabpanel" class="tab-panel" role="tabpanel" tabindex="0"
+           th:attr="aria-labelledby=|tab-link-${selectedTab.id}|">
+    <h3 th:text="${selectedTab.heading}">概要</h3>
+    <p th:text="${selectedTab.description}">説明</p>
+  </section>
+</div>
+</body>
+</html>

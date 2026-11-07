@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="ordersContent">
+  <dl>
+    <div><dt>本日の受付</dt><dd><span th:text="${orders.received}"></span> 件</dd></div>
+    <div><dt>処理待ち</dt><dd><span th:text="${orders.pending}"></span> 件</dd></div>
+    <div><dt>状態</dt><dd th:text="${orders.status}"></dd></div>
+  </dl>
+  <p>最終成功取得: <time th:text="${orders.updatedAt}"></time></p>
+</th:block>
+<th:block th:fragment="inventoryContent">
+  <dl>
+    <div><dt>利用可能な在庫</dt><dd><span th:text="${inventory.availableUnits}"></span> 個</dd></div>
+    <div><dt>在庫確認が必要な品目</dt><dd><span th:text="${inventory.lowStockItems}"></span> 品目</dd></div>
+    <div><dt>状態</dt><dd th:text="${inventory.status}"></dd></div>
+  </dl>
+  <p>最終成功取得: <time th:text="${inventory.updatedAt}"></time></p>
+</th:block>
+</body>
+</html>

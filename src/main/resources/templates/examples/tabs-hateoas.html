@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>タブ（HATEOAS） | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <link rel="stylesheet" th:href="@{/css/tabs-hateoas.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/tabs-hateoas.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('tabs-hateoas')}"></aside>
+<main>
+  <h1>タブ（HATEOAS）</h1>
+  <p>どのタブを表示するかは URL で表し、サーバーが選択中のタブとタブ一覧を HTML で返します。</p>
+  <ol>
+    <li>タブを選び、URL・選択表示・内容が一緒に変わることを確認します。</li>
+    <li>ブラウザーの戻る・進むで選択状態が URL に応じて復元されることを確認します。</li>
+    <li>キーボードでは Tab でタブ一覧に入り、左右矢印で移動、Enter または Space で選択します。Home / End は先頭・末尾へ移動します。</li>
+  </ol>
+  <noscript><p>JavaScript が無効でも、各タブのリンクからページ全体を表示できます。矢印キーのタブ間移動は利用できません。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="tabs-loading" class="htmx-indicator" role="status">タブを読み込んでいます…</p>
+
+  <section aria-labelledby="demo-title">
+    <h2 id="demo-title">タブを試す</h2>
+    <div id="tab-interface" th:replace="~{examples/tabs-hateoas-content :: tabContent(tabs=${tabs}, selectedTab=${selectedTab})}"></div>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>サーバーが URL に対応するタブ一覧と選択中の内容を返します</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答・画面更新</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/tabs-hateoas</td><td>200・ページ全体。概要を選択状態にする</td></tr>
+      <tr><td>タブ選択</td><td>GET /examples/tabs-hateoas/tab/{tabId}</td><td>200・htmx 要求ではタブ一覧と内容の断片を差し替え、URL 履歴も更新。通常要求ではページ全体</td></tr>
+      <tr><td>戻る・進む</td><td>GET /examples/tabs-hateoas/tab/{tabId}</td><td>履歴復元要求ではページ全体を返し、htmx が現在の履歴 URL の状態を復元</td></tr>
+      <tr><td>存在しないタブ ID</td><td>GET /examples/tabs-hateoas/tab/{tabId}</td><td>404。既存の表示を維持してエラーを通知</td></tr>
+      <tr><td>通信失敗・タイムアウト</td><td>同上</td><td>現在のタブを維持して通知。タブリンクから再試行可能</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>各タブは通常のリンクであり、JavaScript が無効でもページ全体を取得できます。htmx は同じリンクを GET し、返された選択状態と内容をまとめて差し替えます。</li>
+      <li>選択状態はサーバーがリクエスト URL から決めます。JavaScript はタブ内のフォーカス移動だけを補助し、選択状態を別に持ちません。</li>
+      <li><code>hx-push-url</code> で選択した URL を履歴に追加します。履歴復元時は htmx の復元要求を判別し、全ページを返します。<code>Vary</code> で応答形式のキャッシュ混同を防ぎます。</li>
+      <li>GET は固定の架空説明を参照するだけです。DB・外部 API・セッション状態・追加ライブラリは使いません。</li>
+    </ul>
+    <h2>キーボードとアクセシビリティ</h2>
+    <p>タブ一覧は左右矢印でフォーカスを移動する手動選択方式です。Enter / Space で選択するとサーバー応答を反映します。選択状態・タブパネルとの関連は、応答 HTML の <code>aria-selected</code>、<code>aria-controls</code>、<code>aria-labelledby</code> で表します。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/tabs-hateoas/">htmx 公式 Tabs (Using HATEOAS)</a> のように、サーバーが選択中のタブ一覧と内容を含む HTML を返します。この例では通常リンクによる全ページ表示、URL 履歴、キーボード操作、エラー通知を加えています。JavaScript による選択状態の管理は行いません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

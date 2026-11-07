@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>リクエストを完了できませんでした</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<main>
+  <h1>リクエストを完了できませんでした</h1>
+  <p>HTTP <span th:text="${status}">500</span></p>
+  <p th:if="${status == 403}">要求を許可できませんでした。セッション失効や CSRF トークン不一致の可能性があります。ページを再読み込みして再試行してください。</p>
+  <p th:if="${status == 409}">別の操作で更新されています。再取得してから編集し直してください。</p>
+  <p th:if="${status == 413}">送信内容が上限を超えています。ファイルサイズや入力内容を確認してください。</p>
+  <p th:if="${status == 503}">一時的に処理できません。新しい画面を開いたときはセッション上限の可能性があります。既存の画面を使い、空きがない場合は20分待つかローカルサーバーを再起動してください。</p>
+  <p th:if="${status != 403 and status != 409 and status != 413 and status != 503}">操作対象や入力を確認してください。解決しない場合は時間を置いて再試行してください。</p>
+  <a th:href="@{/examples/click-to-edit}">サンプルへ戻る</a>
+</main>
+</body>
+</html>

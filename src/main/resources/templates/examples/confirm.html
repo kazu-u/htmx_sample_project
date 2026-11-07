@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>Confirm | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <link rel="stylesheet" th:href="@{/css/confirm.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/confirm.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('confirm')}"></aside>
+<main>
+  <h1>Confirm（独自の確認手順）</h1>
+  <p><code>hx-confirm</code> の確認画面を、外部ライブラリを使わず標準の <code>&lt;dialog&gt;</code> に置き換えます。</p>
+  <ol>
+    <li>「確認して結果を取得」を選び、独自の確認ダイアログが開くことを確認します。</li>
+    <li>「続ける」を選ぶと GET が送られ、結果欄だけが更新されます。</li>
+    <li>もう一度試し、「やめる」または Escape で閉じると GET が送られないことを確認します。</li>
+  </ol>
+  <noscript><p>JavaScript が無効な場合は、<a th:href="@{/examples/confirm/result}">結果を通常ページで表示</a>してください。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="confirm-loading" class="htmx-indicator" role="status">結果を取得しています…</p>
+
+  <section aria-labelledby="demo-title" data-request-region>
+    <h2 id="demo-title">確認を試す</h2>
+    <button id="confirm-trigger" type="button" data-custom-confirm
+            th:attr="hx-get=@{/examples/confirm/result}"
+            hx-confirm="確認後の結果を取得します。続けますか？"
+            hx-target="#confirm-result" hx-swap="innerHTML"
+            hx-indicator="#confirm-loading" hx-sync="this:drop" hx-disabled-elt="this">
+      確認して結果を取得
+    </button>
+    <div id="confirm-result" aria-live="polite">
+      <p>まだ結果を取得していません。</p>
+    </div>
+    <dialog id="confirmation-dialog" aria-labelledby="confirmation-title"
+            aria-describedby="confirmation-question">
+      <h2 id="confirmation-title">操作の確認</h2>
+      <p id="confirmation-question"></p>
+      <form method="dialog">
+        <button type="submit" value="cancel" autofocus>やめる</button>
+        <button id="confirm-request" type="button">続ける</button>
+      </form>
+    </dialog>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>確認が完了するまで要求を保留し、結果だけを取得します</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答・画面更新</th></tr></thead>
+      <tbody>
+      <tr><td>確認して続ける</td><td>GET /examples/confirm/result</td><td>200・結果断片で confirm-result の中身を置換</td></tr>
+      <tr><td>キャンセル・Escape</td><td>要求なし</td><td>ダイアログを閉じ、起動ボタンへフォーカスを戻す</td></tr>
+      <tr><td>JavaScript 無効時の代替</td><td>GET /examples/confirm/result</td><td>200・同じ結果を含むページ全体</td></tr>
+      <tr><td>HTTP エラー・通信断・タイムアウト</td><td>GET /examples/confirm/result</td><td>共通通知を表示し、結果欄は成功応答まで維持</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>htmx:confirm</code> で <code>hx-confirm</code> の質問を受け取り、<code>preventDefault()</code> で htmx の既定確認と要求を保留します。続ける操作から <code>issueRequest(true)</code> を呼び、既定の <code>window.confirm()</code> を重ねずに要求を送ります。</li>
+      <li>この例の GET は固定の結果を返すだけで、業務状態は変更・保存しません。<code>HX-Request</code> は応答形式の選択だけに使い、<code>Vary: HX-Request</code> を付けます。</li>
+      <li>標準の <code>&lt;dialog&gt;</code> がモーダル表示を行います。キャンセル・Escape では保留中の要求を破棄し、閉じた後は起動ボタンへフォーカスを戻します。</li>
+      <li>JavaScript 無効時には通常リンクから同じ GET にアクセスできます。第三者 UI ライブラリ、インラインイベント、htmx の条件式は使いません。</li>
+    </ul>
+    <h2>異常系と制約</h2>
+    <p>キャンセル時はサーバーへアクセスしません。通信に失敗した場合は共通通知が表示され、既存の結果を保ったままボタンから再試行できます。標準ダイアログの見た目・フォーカス動作はブラウザーに依存します。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/confirm/">htmx 公式 Confirm</a> は SweetAlert2 とインライン JavaScript を使った例を示します。本サンプルは依存追加を避け、標準 <code>&lt;dialog&gt;</code> と外部 JavaScript の <code>htmx:confirm</code> イベントで同じ要求保留・再開を説明します。確認後の処理は固定 GET に限定し、JavaScript 無効時の通常リンクとエラー通知を加えています。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

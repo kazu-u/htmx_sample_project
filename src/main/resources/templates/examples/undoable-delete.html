@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>取り消せる削除 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+</head>
+<body>
+<header>
+  <a th:href="@{/}">Spring Boot + htmx サンプル</a>
+</header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('undoable-delete')}"></aside>
+<main>
+  <h1>取り消せる削除</h1>
+  <p>削除をすぐ確定せず、30秒間の「削除待ち」を設けて、その間に操作を取り消す方法を学びます。</p>
+  <ol>
+    <li>作業の「削除待ちにする」を押すと、セッション内の状態が削除待ちになります。</li>
+    <li>30秒以内なら同じ行の「取り消す」で元に戻せます。</li>
+    <li>期限後は削除済みとして扱います。「一覧を再取得」で期限後の表示を確認できます。</li>
+  </ol>
+  <noscript><p>JavaScript が無効の場合も通常フォームで操作できます。削除待ちにする前に確認欄へチェックしてください。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="undoable-loading" class="htmx-indicator" role="status">更新しています…</p>
+
+  <section id="undoable-list" th:fragment="taskList" aria-labelledby="task-list-title" data-request-region>
+    <h2 id="task-list-title" tabindex="-1">架空の作業一覧</h2>
+    <p class="notice" role="status" th:if="${notice}" th:text="${notice}"></p>
+    <p>固定の架空データ5件です。状態はセッションごとに分離され、画面を開いた時点で期限を判定します。</p>
+    <table>
+      <caption>取り消し期限はサーバー側で判定します</caption>
+      <thead>
+      <tr><th scope="col">作業</th><th scope="col">担当者</th><th scope="col">状態</th><th scope="col">操作</th></tr>
+      </thead>
+      <tbody id="undoable-tasks">
+      <th:block th:each="task : ${tasks}">
+        <tr th:replace="~{fragments/undoable-task-row :: taskRow(${task})}"></tr>
+      </th:block>
+      </tbody>
+    </table>
+    <form method="get" th:action="@{/examples/undoable-delete}"
+          th:attr="hx-get=@{/examples/undoable-delete}" hx-target="#undoable-list"
+          hx-swap="outerHTML" hx-disabled-elt="find button" hx-indicator="#undoable-loading">
+      <button type="submit">一覧を再取得</button>
+    </form>
+    <form method="post" th:action="@{/examples/undoable-delete/reset}"
+          th:attr="hx-post=@{/examples/undoable-delete/reset}" hx-target="#undoable-list"
+          hx-swap="outerHTML" hx-disabled-elt="find button" hx-indicator="#undoable-loading">
+      <input type="hidden" name="revision" th:value="${listRevision}">
+      <button type="submit">初期状態に戻す</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <p>削除待ちは30秒の期限付き状態です。期限内の取り消し POST だけが状態を戻し、期限後は再取得時に削除済みと表示します。GET は保存状態を変更せず、期限と状態から表示を計算します。</p>
+    <table>
+      <caption>更新要求は現在のセッションだけに反映します</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答と画面</th></tr></thead>
+      <tbody>
+      <tr><td>一覧表示・再取得</td><td>GET /examples/undoable-delete</td><td>200・ページ全体。htmx では一覧断片</td></tr>
+      <tr><td>削除待ち</td><td>POST /examples/undoable-delete/{id}/delete</td><td>htmx は行断片、通常フォームは一覧へリダイレクト</td></tr>
+      <tr><td>取り消し</td><td>POST /examples/undoable-delete/{id}/undo</td><td>htmx は行断片、通常フォームは一覧へリダイレクト</td></tr>
+      <tr><td>初期化</td><td>POST /examples/undoable-delete/reset</td><td>一覧を初期状態に戻す</td></tr>
+      <tr><td>期限切れ・古い版の操作や初期化</td><td>POST /examples/undoable-delete/{id}/undo または /reset</td><td>409・状態は変更せず、再取得を案内</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>削除・取り消し・初期化は CSRF 保護された POST です。通常フォームでも操作でき、JavaScript 無効時の削除確認はサーバー側で検証します。</li>
+      <li>各行の更新と一覧の初期化に版を含め、二重送信や古い画面の削除・取り消し・初期化は409で拒否します。一覧版は行の版と期限から導出した表示状態を含む同期スナップショットです。存在しない ID は404です。</li>
+      <li>htmx は行だけを差し替え、更新後は操作ボタンへフォーカスを戻します。エラー時は行を保ち、通知を表示します。</li>
+      <li>期限はサーバーの時計で判定し、期限切れ状態は表示上確定します。GETでは状態を書き換えません。5件固定のため記録数は増えず、明示リセットまたは20分のセッション失効で初期化されます。</li>
+      <li>期限の境界は30秒ちょうどで取り消し不可です。画面を開いたまま期限が過ぎても、サーバーが取り消しを拒否します。一覧を再取得すると「削除済み」に更新されます。</li>
+    </ul>
+    <h2>異常系と状態の寿命</h2>
+    <ul>
+      <li>CSRF トークンがない・一致しない要求は403、期限切れ・二重操作・古い版は409、存在しない ID は404です。</li>
+      <li>通信断・タイムアウトでは成功したと決めつけず、通知を確認して一覧を再取得してください。</li>
+      <li>状態はセッション単位で分離され、20分の無通信またはサーバー再起動で消えます。初期化はそのセッションだけに反映します。</li>
+    </ul>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/delete-row/">htmx 公式 Delete Row</a> の行単位更新を参考に、削除の即時確定ではなく期限付きの削除待ちと取り消しを加えています。</p>
+    <p>固定データ、状態版、CSRF、通常フォーム代替、期限切れの論理確定、セッション分離を実装しています。DB、外部 API、バックグラウンドジョブ、追加依存は使いません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

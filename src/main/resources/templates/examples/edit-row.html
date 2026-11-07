@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>行を編集 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('edit-row')}"></aside>
+<main>
+  <h1>行を編集</h1>
+  <p>一覧の行だけを編集フォームに切り替え、保存またはキャンセルでその行だけを表示へ戻します。</p>
+  <ol>
+    <li>任意の行で「編集する」を押し、名前とメールを変更します。複数行を独立して編集できます。</li>
+    <li>「保存する」で行を更新、「キャンセル」で未保存の入力を捨てて最新の保存済み内容に戻します。</li>
+    <li>名前を空欄にして保存すると、入力を残したままその行にエラーが出ます。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時も通常フォームで操作できます。ページ全体が移動するため、同時に編集するのは1行です。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">通信中です…</p>
+  <section aria-labelledby="people-title" data-request-region>
+    <h2 id="people-title">架空の連絡先一覧</h2>
+    <p class="notice" role="status" th:if="${notice}" th:text="${notice}"></p>
+    <table class="editable-table">
+      <caption>3件の架空データ。各行の名前・メールを編集できます</caption>
+      <thead><tr><th scope="col">名前</th><th scope="col">メールアドレス</th><th scope="col">操作</th></tr></thead>
+      <tbody>
+      <th:block th:each="person : ${people}">
+        <tr th:replace="~{examples/edit-row-row :: row(${person})}"></tr>
+      </th:block>
+      </tbody>
+    </table>
+    <p>初期化は保存済みの全行と未保存の入力を破棄します。行を保存した後はページを再読み込みしてから初期化してください。古い一覧の版は409で拒否します。</p>
+    <form method="post" th:action="@{/examples/edit-row/reset}">
+      <input type="hidden" name="revision" th:value="${listRevision}">
+      <button type="submit">一覧を初期状態に戻す</button>
+    </form>
+  </section>
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <p>各行の <code>hx-target="this"</code> と <code>hx-swap="outerHTML"</code> で、応答の一行を置き換えます。別の行の入力内容はそのまま残ります。</p>
+    <table>
+      <caption>URL は /examples/edit-row 配下。htmx の対象は #person-row-{id}</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答</th></tr></thead>
+      <tbody>
+      <tr><td>一覧</td><td>GET /examples/edit-row</td><td>200・ページ全体</td></tr>
+      <tr><td>編集</td><td>GET /{id}/edit</td><td>200・編集用の tr</td></tr>
+      <tr><td>保存</td><td>POST /{id}</td><td>200・表示用の tr。不正入力は422・入力とエラーを含む tr</td></tr>
+      <tr><td>キャンセル</td><td>GET /{id}</td><td>200・最新の保存済み tr。GET は状態を変更しない</td></tr>
+      <tr><td>初期化</td><td>POST /reset</td><td>一覧の版を照合し、全体ページへリダイレクト</td></tr>
+      </tbody>
+    </table>
+    <p>通常アクセスは一覧全体を返し、通常フォームの保存成功時は一覧へリダイレクトします。不正入力は422で編集行を含む全体ページです。htmx の保存・キャンセルは他の編集行を変更しません。</p>
+    <ul>
+      <li><code>hx-sync="this:drop"</code> は同じ行の通信中に重複要求を捨てます。<code>hx-disabled-elt="find button"</code> で行内の保存・キャンセル等を一緒に無効にします。異なる行は並行操作できます。</li>
+      <li>HTML の制約に合わせ、form は操作セル内に置き、名前・メールは <code>form</code> 属性で関連付けます。htmx も通常フォームもこの入力を送信します。</li>
+      <li>GET 操作には <code>hx-params="none"</code> を指定して不要な値を URL に含めません。更新時は通常フォームの hidden 項目、htmx は追加のヘッダーでも CSRF トークンを送ります。</li>
+      <li>EditRowController は入力と表示の選択、EditRowState は3行と版の管理を担当します。ContactForm の名前・メール・版の検証を「クリックで編集」から再利用します。app.js は422差し替え、通知、フォーカスを扱います。</li>
+    </ul>
+    <h2>異常系と操作性</h2>
+    <ul>
+      <li>名前は必須・60文字以内、メールは必須・形式検証・254文字以内（Java の文字列長）。422後は最初の不正入力へフォーカスを移します。編集開始は名前、保存・キャンセル後は編集ボタンへ戻ります。</li>
+      <li>同じ行を別タブで開き、一方で保存後にもう一方で保存すると409です。入力は差し替えず残すので、必要なら控えてキャンセルまたは再読み込みしてください。別の行の保存は競合しません。</li>
+      <li>古い行の版は入力エラーより先に409です。版が空欄・36文字超過等の制約違反なら422、制約内でも現在の版と不一致なら409です。</li>
+      <li>存在しない ID は404、数値でない ID は400。CSRF 欠落・不一致は403。成功に偽装せず通知し、htmx では入力を残します。</li>
+      <li>通信断・10秒のタイムアウトでは通知し、保存済みと決めつけません。入力を控えて状態を再取得してください。</li>
+    </ul>
+    <h2>状態の寿命と制約</h2>
+    <p>一覧はセッションごとの3件だけで、追加・削除はありません。同じセッションのタブは共有し、別セッションとは分離します。無通信20分・サーバー再起動で消えます。初期化は行の版も更新し、古い編集からの保存を拒否します。</p>
+    <p>DB・外部 API・追加依存なしのローカル学習用です。サーバー全体で100セッション、フォーム16KB・パラメーター20個を上限とし、超過は503・413・400で通知します。認証・認可を備えた本番向け連絡先管理ではありません。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/edit-row/">htmx 公式 Edit Row</a> の行単位の表示・編集切り替えを参考に独自実装しています。公式例の単一行編集・SweetAlert・インライン JavaScript は使わず、複数行の独立編集と標準フォームを採用しました。</p>
+    <p>公式例の PUT と hx-include の代わりに POST と form 属性を使い、JavaScript 無効時にも操作できるようにしています。CSRF、422、版照合、初期化、日本語説明とフォーカス復帰を加えました。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

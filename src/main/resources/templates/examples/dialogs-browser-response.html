@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<p id="dialog-result" role="status" aria-live="polite" aria-atomic="true"
+   th:fragment="success">入力されたメッセージ: <span th:text="${submittedMessage}"></span></p>
+<p id="dialog-result" class="field-error" role="alert" aria-live="assertive" aria-atomic="true"
+   tabindex="-1" th:fragment="error" th:text="${dialogError}"></p>
+</body>
+</html>

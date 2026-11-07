@@ -1,0 +1,5 @@
+* text=auto
+mvnw text eol=lf
+mvnw.cmd text eol=crlf
+src/main/resources/static/vendor/htmx/*.js -text
+src/main/resources/static/vendor/htmx/LICENSE -text

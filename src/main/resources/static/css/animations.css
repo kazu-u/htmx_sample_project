@@ -1,0 +1,28 @@
+.animation-controls { display: flex; flex-wrap: wrap; gap: .5rem; }
+.animation-controls.htmx-request { opacity: .7; transition: opacity 150ms ease; }
+.animation-controls button {
+  display: inline-block;
+  padding: .5rem .75rem;
+  color: white;
+  background: #075b8d;
+  border: 2px solid #075b8d;
+  border-radius: .25rem;
+}
+.animation-card {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 2px solid #304658;
+  border-radius: .5rem;
+  transition: opacity 240ms ease;
+}
+.animation-card.htmx-added { opacity: 0; }
+.animation-card--coral { color: #48201b; background: #f5c2b9; }
+.animation-card--ocean { color: #102b45; background: #b7d8f0; }
+.animation-card--forest { color: #173a25; background: #c1e0c8; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-controls.htmx-request,
+  .animation-card {
+    transition-duration: 0.01ms;
+  }
+}

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<nav th:fragment="sampleMenu(currentSample)" class="sample-menu" aria-label="サンプル">
+  <h2>サンプル</h2>
+  <details th:attr="open=${currentSample == 'click-to-load' or currentSample == 'lazy-loading' or currentSample == 'infinite-scroll' or currentSample == 'active-search' or currentSample == 'url-table'} ? 'open' : null">
+    <summary>読み込み・検索</summary>
+    <ul>
+      <li><a th:href="@{/examples/click-to-load}" th:attr="aria-current=${currentSample == 'click-to-load' ? 'page' : null}">クリックして続きを読み込む</a></li>
+      <li><a th:href="@{/examples/lazy-loading}" th:attr="aria-current=${currentSample == 'lazy-loading' ? 'page' : null}">必要な内容を後から取得</a></li>
+      <li><a th:href="@{/examples/infinite-scroll}" th:attr="aria-current=${currentSample == 'infinite-scroll' ? 'page' : null}">スクロールして続きを取得</a></li>
+      <li><a th:href="@{/examples/active-search}" th:attr="aria-current=${currentSample == 'active-search' ? 'page' : null}">入力に応じた検索</a></li>
+      <li><a th:href="@{/examples/url-table}" th:attr="aria-current=${currentSample == 'url-table' ? 'page' : null}">URLで絞り込む注文一覧</a></li>
+    </ul>
+  </details>
+  <details th:attr="open=${currentSample == 'inline-validation' or currentSample == 'accessible-combobox' or currentSample == 'multi-step-form' or currentSample == 'file-upload' or currentSample == 'file-upload-input' or currentSample == 'reset-user-input'} ? 'open' : null">
+    <summary>入力・フォーム</summary>
+    <ul>
+      <li><a th:href="@{/examples/inline-validation}" th:attr="aria-current=${currentSample == 'inline-validation' ? 'page' : null}">入力欄の近くで検証</a></li>
+      <li><a th:href="@{/examples/accessible-combobox}" th:attr="aria-current=${currentSample == 'accessible-combobox' ? 'page' : null}">候補から担当者を選択</a></li>
+      <li><a th:href="@{/examples/multi-step-form}" th:attr="aria-current=${currentSample == 'multi-step-form' ? 'page' : null}">複数ステップフォーム</a></li>
+      <li><a th:href="@{/examples/file-upload}" th:attr="aria-current=${currentSample == 'file-upload' ? 'page' : null}">ファイル送信</a></li>
+      <li><a th:href="@{/examples/file-upload-input}" th:attr="aria-current=${currentSample == 'file-upload-input' ? 'page' : null}">エラー後にファイル選択を保持</a></li>
+      <li><a th:href="@{/examples/reset-user-input}" th:attr="aria-current=${currentSample == 'reset-user-input' ? 'page' : null}">送信成功後に入力を初期化</a></li>
+    </ul>
+  </details>
+  <details th:attr="open=${currentSample == 'click-to-edit' or currentSample == 'bulk-update' or currentSample == 'delete-row' or currentSample == 'undoable-delete' or currentSample == 'edit-row'} ? 'open' : null">
+    <summary>行・データ操作</summary>
+    <ul>
+      <li><a th:href="@{/examples/click-to-edit}" th:attr="aria-current=${currentSample == 'click-to-edit' ? 'page' : null}">クリックで編集</a></li>
+      <li><a th:href="@{/examples/bulk-update}" th:attr="aria-current=${currentSample == 'bulk-update' ? 'page' : null}">まとめて有効・無効を更新</a></li>
+      <li><a th:href="@{/examples/delete-row}" th:attr="aria-current=${currentSample == 'delete-row' ? 'page' : null}">行を削除</a></li>
+      <li><a th:href="@{/examples/undoable-delete}" th:attr="aria-current=${currentSample == 'undoable-delete' ? 'page' : null}">取り消せる削除</a></li>
+      <li><a th:href="@{/examples/edit-row}" th:attr="aria-current=${currentSample == 'edit-row' ? 'page' : null}">行を編集</a></li>
+    </ul>
+  </details>
+  <details th:attr="open=${currentSample == 'value-select' or currentSample == 'dialogs-browser' or currentSample == 'dialogs-custom' or currentSample == 'tabs-hateoas' or currentSample == 'tabs-javascript' or currentSample == 'keyboard-shortcuts' or currentSample == 'confirm'} ? 'open' : null">
+    <summary>画面・操作部品</summary>
+    <ul>
+      <li><a th:href="@{/examples/value-select}" th:attr="aria-current=${currentSample == 'value-select' ? 'page' : null}">連動する選択肢</a></li>
+      <li><a th:href="@{/examples/dialogs-browser}" th:attr="aria-current=${currentSample == 'dialogs-browser' ? 'page' : null}">ブラウザー標準ダイアログ</a></li>
+      <li><a th:href="@{/examples/dialogs-custom}" th:attr="aria-current=${currentSample == 'dialogs-custom' ? 'page' : null}">独自ダイアログ</a></li>
+      <li><a th:href="@{/examples/tabs-hateoas}" th:attr="aria-current=${currentSample == 'tabs-hateoas' ? 'page' : null}">タブ（HATEOAS）</a></li>
+      <li><a th:href="@{/examples/tabs-javascript}" th:attr="aria-current=${currentSample == 'tabs-javascript' ? 'page' : null}">タブ（JavaScript）</a></li>
+      <li><a th:href="@{/examples/keyboard-shortcuts}" th:attr="aria-current=${currentSample == 'keyboard-shortcuts' ? 'page' : null}">キーボードショートカット</a></li>
+      <li><a th:href="@{/examples/confirm}" th:attr="aria-current=${currentSample == 'confirm' ? 'page' : null}">Confirm（独自の確認手順）</a></li>
+    </ul>
+  </details>
+  <details th:attr="open=${currentSample == 'animations' or currentSample == 'progress-bar' or currentSample == 'updating-other-content' or currentSample == 'web-components' or currentSample == 'dashboard' or currentSample == 'live-notifications'} ? 'open' : null">
+    <summary>画面連携・応用</summary>
+    <ul>
+      <li><a th:href="@{/examples/animations}" th:attr="aria-current=${currentSample == 'animations' ? 'page' : null}">差し替え時のアニメーション</a></li>
+      <li><a th:href="@{/examples/progress-bar}" th:attr="aria-current=${currentSample == 'progress-bar' ? 'page' : null}">進捗バー</a></li>
+      <li><a th:href="@{/examples/updating-other-content}" th:attr="aria-current=${currentSample == 'updating-other-content' ? 'page' : null}">他のコンテンツも更新</a></li>
+      <li><a th:href="@{/examples/web-components}" th:attr="aria-current=${currentSample == 'web-components' ? 'page' : null}">Web Components</a></li>
+      <li><a th:href="@{/examples/dashboard}" th:attr="aria-current=${currentSample == 'dashboard' ? 'page' : null}">ダッシュボードの定期更新</a></li>
+      <li><a th:href="@{/examples/live-notifications}" th:attr="aria-current=${currentSample == 'live-notifications' ? 'page' : null}">サーバーイベントによるライブ通知</a></li>
+    </ul>
+  </details>
+</nav>
+</body>
+</html>

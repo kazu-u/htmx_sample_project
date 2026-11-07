@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<table><tbody>
+<tr th:fragment="row(person)" th:id="|person-row-${person.id}|" data-edit-row
+    th:object="${contactForm}" hx-target="this" hx-swap="outerHTML"
+    hx-sync="this:drop" hx-disabled-elt="find button" hx-indicator="#loading">
+  <th:block th:unless="${editingId == person.id}">
+    <td th:text="${person.name}"></td>
+    <td th:text="${person.email}"></td>
+    <td>
+      <p class="notice" role="status" th:if="${rowNotice}" th:text="${rowNotice}"></p>
+      <form method="get" th:action="@{/examples/edit-row/{id}/edit(id=${person.id})}"
+            th:attr="hx-get=@{/examples/edit-row/{id}/edit(id=${person.id})}" hx-params="none">
+        <button type="submit" data-edit-button th:attr="aria-label=|${person.name}を編集する|">編集する</button>
+      </form>
+    </td>
+  </th:block>
+  <th:block th:if="${editingId == person.id}">
+    <td>
+      <label th:for="|row-${person.id}-name|">名前（必須・60文字以内）</label>
+      <input th:id="|row-${person.id}-name|" type="text" name="name" th:value="*{name}"
+             th:attr="form=|edit-person-${person.id}|,aria-describedby=|row-${person.id}-name-error|,aria-invalid=${#fields.hasErrors('name')}"
+             maxlength="60" required autocomplete="name">
+      <p th:id="|row-${person.id}-name-error|" class="field-error">
+        <span th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></span>
+      </p>
+    </td>
+    <td>
+      <label th:for="|row-${person.id}-email|">メール（必須・254文字以内）</label>
+      <input th:id="|row-${person.id}-email|" type="email" name="email" th:value="*{email}"
+             th:attr="form=|edit-person-${person.id}|,aria-describedby=|row-${person.id}-email-error|,aria-invalid=${#fields.hasErrors('email')}"
+             maxlength="254" required autocomplete="email">
+      <p th:id="|row-${person.id}-email-error|" class="field-error">
+        <span th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></span>
+      </p>
+    </td>
+    <td>
+      <!-- form を tr の直下に置かず、別セルの入力は form 属性で関連付ける。 -->
+      <form th:id="|edit-person-${person.id}|" method="post" novalidate
+            th:action="@{/examples/edit-row/{id}(id=${person.id})}"
+            th:attr="hx-post=@{/examples/edit-row/{id}(id=${person.id})}">
+        <input type="hidden" name="revision" th:value="*{revision}">
+        <p th:if="${#fields.hasErrors('revision')}" th:errors="*{revision}"
+           class="field-error" role="alert" tabindex="-1"></p>
+        <button type="submit">保存する</button>
+      </form>
+      <form method="get" th:action="@{/examples/edit-row/{id}(id=${person.id})}"
+            th:attr="hx-get=@{/examples/edit-row/{id}(id=${person.id})}" hx-params="none">
+        <button type="submit">キャンセル</button>
+      </form>
+    </td>
+  </th:block>
+</tr>
+</tbody></table>
+</body>
+</html>

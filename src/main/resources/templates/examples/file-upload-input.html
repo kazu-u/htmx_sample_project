@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":30000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>フォームエラー後のファイル選択保持 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <link rel="stylesheet" th:href="@{/css/file-upload-input.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/file-upload-input.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('file-upload-input')}"></aside>
+<main>
+  <h1>フォームエラー後のファイル選択保持</h1>
+  <p>サーバーが422の入力エラーを返してフォームを差し替えても、選択したファイルを再選択せずに修正・再送信できることを確認します。</p>
+  <ol>
+    <li>タイトルを空欄のまま、UTF-8 の <code>.txt</code> ファイルを選択して送信します。</li>
+    <li>タイトルのエラーを確認し、ファイル選択が残っている状態でタイトルを入力します。</li>
+    <li>再送信し、成功通知の後にタイトルとファイル選択が初期化されることを確認します。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時は通常の multipart フォームで送信できますが、検証エラーでページ全体が再表示されるとファイル選択は失われます。もう一度選択してください。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">送信内容を確認しています…</p>
+  <section aria-labelledby="form-title" data-request-region>
+    <h2 id="form-title">送信フォーム</h2>
+    <form id="file-upload-input-form" th:fragment="uploadForm" method="post" enctype="multipart/form-data"
+          th:action="@{/examples/file-upload-input}" th:attr="hx-post=@{/examples/file-upload-input}"
+          hx-encoding="multipart/form-data" hx-target="#file-upload-input-form" hx-swap="outerHTML"
+          hx-sync="this:drop" hx-indicator="#loading"
+          hx-disabled-elt="#upload-input-title, #upload-input-file, #upload-input-submit">
+      <label for="upload-input-title">タイトル（必須・60文字以内）</label>
+      <input id="upload-input-title" name="title" type="text" autocomplete="off"
+             th:value="${submissionTitle}" aria-describedby="upload-input-title-error"
+             th:attr="aria-invalid=${titleError != null ? 'true' : null}">
+      <p id="upload-input-title-error" class="field-error" role="alert"
+         th:text="${titleError}"></p>
+      <label for="upload-input-file">UTF-8 テキストファイル（.txt、最大1 MiB）</label>
+      <input id="upload-input-file" type="file" name="files" accept=".txt,text/plain" required
+             hx-preserve aria-describedby="upload-input-file-help upload-input-file-error"
+             th:attr="aria-invalid=${fileError != null ? 'true' : null}">
+      <p id="upload-input-file-help">ファイル名は120文字以内。内容は検証後も画面に表示せず、保存しません。</p>
+      <p id="upload-input-file-error" class="field-error" role="alert"
+         th:text="${fileError}"></p>
+      <button id="upload-input-submit" type="submit">タイトルとファイルを送信</button>
+      <p th:if="${uploadSuccess != null}" data-upload-input-success role="status" tabindex="-1"
+         th:text="${uploadSuccess}"></p>
+      <p th:if="${uploadNotice != null}" role="status" th:text="${uploadNotice}"></p>
+    </form>
+  </section>
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>ファイルは要求処理中だけ一時的に受信し、アプリケーションの状態には保存しません</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答と差し替え</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/file-upload-input</td><td>200・ページ全体</td></tr>
+      <tr><td>送信</td><td>POST /examples/file-upload-input</td><td>200・htmx はフォーム断片を差し替えて入力を初期化。通常フォームはリダイレクト後にページ全体</td></tr>
+      <tr><td>タイトルやファイルの検証エラー</td><td>同上</td><td>422・htmx はエラー付きフォームを差し替え、`hx-preserve` のファイル選択を維持。通常フォームは全体再表示のため選択が失われる</td></tr>
+      <tr><td>サイズ超過</td><td>同上</td><td>413・htmx は共通通知を表示し元フォームを維持。通常フォームは共通エラーページ</td></tr>
+      <tr><td>CSRF 不正・通信失敗</td><td>同上</td><td>403・HTTPエラー・通信断を通知</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>hx-target="#file-upload-input-form"</code> と <code>hx-swap="outerHTML"</code> はフォーム全体をサーバーの入力値・エラー付き断片で置き換えます。422もHTML断片を差し替えるよう共通処理で明示します。</li>
+      <li><code>hx-preserve</code> はファイル入力だけに付け、入力欄に安定した <code>id</code> を指定します。フォームやエラー表示領域に付けると、修正内容や新しいエラーまで古い要素で置き換わるため、保持対象を入力欄に限定します。</li>
+      <li>成功時は新しいフォームを表示し、外部 JavaScript がブラウザーのファイル入力を空にします。エラー時はファイルを保持し、タイトルなど通常の入力値と項目別エラーも再表示します。</li>
+      <li>CSRF トークンは通常フォームの hidden 値と、共通 JavaScript が付ける同一オリジン用ヘッダーで検証します。送信中は二重送信を抑止し、エラー項目または成功通知へフォーカスを移します。</li>
+      <li>別の方法として、ファイル入力を差し替え対象の外に置き、HTML の <code>form</code> 属性でフォームに関連付けられます。この例では公式例に沿って <code>hx-preserve</code> を使います。</li>
+    </ul>
+    <h2>異常系と制約</h2>
+    <p>タイトルを空欄または61文字以上にして送信すると422です。エラーを直してもファイルを選び直す必要はありません。拡張子・ファイル名・UTF-8内容が不正な場合も422で、ファイル入力の保持を続けるため、ファイル選択ダイアログから別のファイルに置き換えてください。</p>
+    <p>1 MiBを超える要求は413です。htmx では共通通知を表示して元のフォームを差し替えず、選択を維持します。通常フォームは共通エラーページへ遷移するため、選択が失われます。これは422のフォーム差し替え時に <code>hx-preserve</code> で選択を保つ動作とは別です。CSRF 不正・通信断・30秒のタイムアウトも成功扱いにしません。JavaScript 無効時の通常フォームはページ全体を再表示するため、選択済みファイルの復元はブラウザーのセキュリティ制約上できません。</p>
+    <p>受け付けるのは UTF-8 の <code>.txt</code> 1件、1 MiBまで、ファイル名120文字以内です。タイトルは要求中に検証し、状態保存・プレビュー・実行・恒久保存はしません。内容は画面に表示せず、要求終了後にサーブレットの一時データを破棄します。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/file-upload-input/">htmx 公式 Preserving File Inputs after Form Errors</a> の、ファイル入力に一意の <code>id</code> と <code>hx-preserve</code> を付ける方法を使います。公式例に対して、CSRF、サーバー側のタイトル・ファイル検証、422・413、通常フォームの制約、成功時の選択解除、日本語の説明を加えています。ファイルを差し替え領域の外に置く代替案も説明します。追加依存はありません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

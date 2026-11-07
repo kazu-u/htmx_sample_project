@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>入力欄の近くで検証 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('inline-validation')}"></aside>
+<main>
+  <h1>入力欄の近くで検証</h1>
+  <p>メール欄を変更して離れると、サーバーがメールの入力を検証し、その欄の近くに結果を表示します。</p>
+  <ol>
+    <li>架空の名前を入力し、メール欄へ「invalid」と入力して Tab キーで離れます。</li>
+    <li>メールのエラーを確認し、「sample@example.com」に直して再び離れます。</li>
+    <li>「全項目を検証する」で名前・メールを改めて検証します。名前空欄も試してください。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時は欄を離れた際の検証は行いません。通常フォームの送信で全項目を検証できます。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">検証中です…</p>
+  <section id="validation-panel" th:fragment="validationPanel" aria-labelledby="validation-title"
+           data-request-region>
+    <h2 id="validation-title">架空データの入力フォーム</h2>
+    <p class="notice" role="status" tabindex="-1" th:if="${notice}" th:text="${notice}"></p>
+    <form id="validation-form" th:object="${validationForm}" method="post" novalidate
+          th:action="@{/examples/inline-validation}" th:attr="hx-post=@{/examples/inline-validation}"
+          hx-target="#validation-panel" hx-swap="outerHTML" hx-sync="this:drop"
+          hx-indicator="#loading" hx-disabled-elt="#validation-form input, #validation-form button">
+      <label for="validation-name">名前（必須・60文字以内）</label>
+      <input id="validation-name" type="text" th:field="*{name}" maxlength="60" required autocomplete="name"
+             aria-describedby="validation-name-error" th:attr="aria-invalid=${#fields.hasErrors('name')}">
+      <p id="validation-name-error" class="field-error">
+        <span th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></span>
+      </p>
+      <label for="validation-email">メールアドレス（必須・254文字以内）</label>
+      <input id="validation-email" type="email" th:field="*{email}" maxlength="254" required autocomplete="email"
+             aria-describedby="email-feedback" th:attr="aria-invalid=${#fields.hasErrors('email')},hx-post=@{/examples/inline-validation/email}"
+             hx-trigger="change" hx-target="#email-feedback" hx-swap="innerHTML" hx-params="email"
+             hx-sync="closest form:abort" hx-disabled-elt="unset">
+      <div id="email-feedback" role="status" aria-live="polite">
+        <th:block th:fragment="emailFeedback" th:object="${validationForm}">
+          <span th:if="${#fields.hasErrors('email')}" class="field-error" data-email-valid="false"
+                th:errors="*{email}"></span>
+          <span th:if="${emailChecked and !#fields.hasErrors('email') and validationForm.email != null}"
+                data-email-valid="true">メールアドレスの入力形式は有効です。送信時にも再検証します。</span>
+        </th:block>
+      </div>
+      <button type="submit">全項目を検証する</button>
+      <a th:href="@{/examples/inline-validation}">入力を初期状態に戻す</a>
+    </form>
+  </section>
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>すべて /examples/inline-validation 配下</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答と差し替え先</th></tr></thead>
+      <tbody>
+      <tr><td>表示・入力の初期化</td><td>GET /examples/inline-validation</td><td>200・空の入力フォームを含む全体ページ</td></tr>
+      <tr><td>メール欄を変更して離れる</td><td>POST /email</td><td>有効なら200、不正なら422。#email-feedback の中身だけ</td></tr>
+      <tr><td>全項目を検証する</td><td>POST /examples/inline-validation</td><td>有効なら200、不正なら422。#validation-panel 全体</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>hx-trigger="change"</code> は値を変更して欄を離れたときの検証です。入力のたびには送らないため、日本語 IME の変換途中に要求しません。</li>
+      <li><code>hx-params="email"</code> は名前等を送らずメールだけを送ります。CSRF トークンは共通 JavaScript がヘッダーに付けます。通常フォームは hidden のトークンを送ります。</li>
+      <li>単独検証では入力要素を差し替えず、フォーカスも移動しません。入力が変わった後に届く古い検証結果は反映しません。入力し直すと旧結果を消し、再検証が必要なことを表示します。</li>
+      <li><code>hx-sync="closest form:abort"</code> により全体送信を優先して単独検証を中断します。単独検証中の再変更では、共通 JavaScript が change の処理前に旧要求を中断して最新の検証を送ります。全体送信中は入力・ボタンを無効にし、<code>hx-sync="this:drop"</code> で二重送信を抑止します。</li>
+      <li>ValidationForm はメール単独・全体で同じメール制約を使い、InlineValidationController はどちらもサーバーで検証します。単独検証の成功を送信の許可証にはしません。app.js は CSRF・古い応答の抑止・422・通知を扱います。</li>
+    </ul>
+    <h2>異常系と操作性</h2>
+    <p>名前は必須・60文字、メールは必須・形式検証・254文字が上限です（Java の文字列長）。不正なら422と入力・項目別エラーを返します。全体送信の422では最初の不正入力へ、全項目成功では成功通知へフォーカスを移します。</p>
+    <p>CSRF の欠落・不一致は403、要求上限超過は400・413、セッション上限は503です。通信断・10秒のタイムアウトも通知し、入力を残します。通信を戻して欄を変更するか、全体送信で再試行できます。</p>
+    <h2>状態の寿命と制約</h2>
+    <p>登録・DB保存・メール送信・重複メールの照会は行いません。名前・メールと検証結果は画面と処理中の要求だけにあり、サーバーの業務状態として保持しません。初期化や再読み込みで空のフォームに戻ります。入力には架空データだけを使ってください。</p>
+    <p>CSRF用のセッションは無通信20分で失効し、全体で100個までです。失効時は入力を必要なら控えて再読み込みしてください。フォーム16KB・パラメーター20個を上限とするローカル学習用です。本番の会員登録やメールの存在・到達性を確認する仕組みではありません。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/inline-validation/">htmx 公式 Inline Validation</a> を参考に、Spring MVC / Thymeleaf で独自実装しています。公式例の入力欄ごとの置換と固定の受付メールではなく、結果だけの差し替えと入力形式の検証を採用しました。</p>
+    <p>CSRF、422、送信時の全項目再検証、古い応答の抑止、通常フォーム代替、日本語解説を加えました。追加ライブラリやインライン JavaScript は使いません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

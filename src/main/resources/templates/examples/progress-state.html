@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<th:block th:fragment="progressResponse">
+  <th:block th:replace="~{examples/progress-state :: progressState}"></th:block>
+  <th:block th:if="${includeControls or !job.status.running()}">
+    <th:block th:replace="~{examples/progress-panel :: jobControls(true)}"></th:block>
+  </th:block>
+</th:block>
+
+<div id="progress-state" th:fragment="progressState"
+     th:attr="data-job-status=${job.status}, hx-get=${job.status.running() ? '/examples/progress-bar/progress' : null},
+       hx-trigger=${job.status.running() ? 'every 1s' : null},
+       data-progress-poll=${job.status.running() ? 'true' : null}"
+     hx-target="this" hx-swap="outerHTML" hx-sync="#progress-panel:drop"
+     aria-labelledby="job-title">
+  <p id="job-message" th:text="${job.message}"></p>
+  <label for="job-progress">進捗</label>
+  <progress id="job-progress" class="job-progress" max="100" th:value="${job.progress}"
+            th:aria-label="|処理の進捗 ${job.progress}%|"></progress>
+  <p><span th:text="${job.progress}"></span>%</p>
+</div>
+</body>
+</html>

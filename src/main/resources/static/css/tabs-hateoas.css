@@ -1,0 +1,27 @@
+.tabs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  border-bottom: 2px solid #5b6d7b;
+}
+.tabs-list [role="tab"] {
+  display: block;
+  padding: .5rem .85rem;
+  border: 1px solid #bac8d3;
+  border-bottom: 0;
+  border-radius: .35rem .35rem 0 0;
+  text-decoration: none;
+}
+.tabs-list [role="tab"][aria-selected="true"] {
+  color: #172b3a;
+  background: #e4eef5;
+  font-weight: bold;
+}
+.tab-panel {
+  min-height: 7rem;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 1rem 0;
+}
+.tab-panel h3 { margin-top: 0; }

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<div id="prefecture-field" th:fragment="prefectureField(oob)"
+     th:attr="hx-swap-oob=${oob ? 'outerHTML' : null}">
+  <label for="prefecture-select">都道府県</label>
+  <select id="prefecture-select" name="prefectureId"
+          th:attr="hx-get=@{/examples/value-select/cities}, aria-invalid=${prefectureError != null}"
+          hx-trigger="change" hx-target="#city-field" hx-swap="outerHTML"
+          hx-sync="#value-select-form:replace" hx-indicator="#loading"
+          hx-disabled-elt="#city-select, #load-cities-button, #confirm-selection"
+          aria-describedby="prefecture-error">
+    <option value="" th:selected="${selectedPrefectureId == ''}">選択してください</option>
+    <option th:each="prefecture : ${prefectures}" th:value="${prefecture.id}"
+            th:text="${prefecture.name}" th:selected="${prefecture.id == selectedPrefectureId}"></option>
+  </select>
+  <p id="prefecture-error" class="field-error" role="status" th:text="${prefectureError}"></p>
+</div>
+</body>
+</html>

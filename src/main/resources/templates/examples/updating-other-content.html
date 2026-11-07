@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>他のコンテンツも更新 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/updating-other-content.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('updating-other-content')}"></aside>
+<main>
+  <h1>他のコンテンツも更新</h1>
+  <p>連絡先を追加し、一覧のほかに件数と通知も更新します。成功応答に複数領域の HTML を含める方法を学びます。</p>
+  <ol>
+    <li>名前とメールアドレスを入力して「追加」を押し、一覧・件数・通知が一度に変わることを確認します。</li>
+    <li>名前を空欄にするか、メールアドレスを不正な形式にして送信し、値が保持されることを確認します。</li>
+    <li>「初期化」を押し、一覧と件数が空の状態へ戻ることを確認します。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時は通常フォームで送信できます。成功後にページ全体を再表示します。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" th:fragment="requestStatus" role="status" aria-live="polite" aria-atomic="true"
+     th:attr="hx-swap-oob=${oobUpdate ? 'outerHTML' : null}" th:text="${notice}"></p>
+  <p id="loading" class="htmx-indicator" role="status">連絡先を更新しています…</p>
+  <p id="contact-count" th:fragment="contactCount"
+     th:attr="hx-swap-oob=${oobUpdate ? 'outerHTML' : null}"
+     th:text="|登録件数: ${contactCount} / ${contactLimit}|"></p>
+
+  <section id="contacts-panel" th:fragment="contactsPanel" aria-labelledby="contacts-title"
+           data-request-region th:attr="data-revision=${revision}">
+    <h2 id="contacts-title">連絡先一覧</h2>
+    <table>
+      <caption>このセッションで追加した架空の連絡先</caption>
+      <thead><tr><th scope="col">名前</th><th scope="col">メールアドレス</th></tr></thead>
+      <tbody id="contact-table-body">
+        <tr th:if="${contacts.isEmpty()}"><td colspan="2">まだ連絡先はありません。</td></tr>
+        <tr th:each="contact : ${contacts}">
+          <th scope="row" th:text="${contact.name}"></th>
+          <td th:text="${contact.email}"></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>連絡先を追加</h2>
+    <form id="contact-form" method="post"
+          th:action="@{/examples/updating-other-content}" th:object="${contactForm}"
+          th:attr="hx-post=@{/examples/updating-other-content}"
+          hx-target="#contacts-panel" hx-swap="outerHTML"
+          hx-sync="#contacts-panel:drop" hx-indicator="#loading"
+          hx-disabled-elt="#contact-name, #contact-email, #contact-submit, #contact-reset"
+          novalidate>
+      <label for="contact-name">名前（必須・60文字以内）</label>
+      <input id="contact-name" type="text" th:field="*{name}" maxlength="60"
+             aria-describedby="contact-name-error"
+             th:attr="aria-invalid=${#fields.hasErrors('name') ? 'true' : null}">
+      <p id="contact-name-error" class="field-error" role="alert" th:errors="*{name}"></p>
+      <label for="contact-email">メールアドレス（必須・254文字以内）</label>
+      <input id="contact-email" type="email" th:field="*{email}" maxlength="254"
+             aria-describedby="contact-email-error"
+             th:attr="aria-invalid=${#fields.hasErrors('email') ? 'true' : null}">
+      <p id="contact-email-error" class="field-error" role="alert" th:errors="*{email}"></p>
+      <p id="capacity-error" class="field-error" role="alert"
+         th:if="${capacityError != null}" th:text="${capacityError}"></p>
+      <p id="revision-conflict-error" class="field-error" role="alert"
+         th:if="${conflictError != null}">
+        <span th:text="${conflictError}"></span>
+        <a id="revision-conflict-reload" th:href="@{/examples/updating-other-content}">最新状態を再読み込み</a>
+      </p>
+      <p id="revision-error" class="field-error" role="alert"
+         th:if="${revisionError != null}">
+        <span th:text="${revisionError}"></span>
+        <a id="revision-reload" th:href="@{/examples/updating-other-content}">最新状態を再読み込み</a>
+      </p>
+      <input type="hidden" th:field="*{revision}">
+      <button id="contact-submit" type="submit">追加</button>
+    </form>
+    <form id="contacts-reset-form" method="post"
+          th:action="@{/examples/updating-other-content/reset}"
+          th:attr="hx-post=@{/examples/updating-other-content/reset}"
+          hx-target="#contacts-panel" hx-swap="outerHTML"
+          hx-sync="#contacts-panel:drop" hx-indicator="#loading"
+          hx-disabled-elt="#contact-name, #contact-email, #contact-submit, #contact-reset">
+      <input type="hidden" name="revision" th:value="${revision}">
+      <p id="reset-revision-error" class="field-error" role="alert"
+         th:if="${resetRevisionError != null}">
+        <span th:text="${resetRevisionError}"></span>
+        <a id="reset-revision-reload" th:href="@{/examples/updating-other-content}">最新状態を再読み込み</a>
+      </p>
+      <button id="contact-reset" type="submit">一覧を初期化</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>成功時は一覧を主差し替えし、件数と通知を OOB 差し替えします</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答と画面更新</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/updating-other-content</td><td>200・ページ全体</td></tr>
+      <tr><td>連絡先を追加</td><td>POST /examples/updating-other-content</td><td>200・一覧とフォームを含むパネルを差し替え、件数と通知を OOB 差し替え</td></tr>
+      <tr><td>入力不正・登録上限</td><td>同上</td><td>422・パネルを再表示し、入力とエラーを保持。件数も OOB 更新し、版が欠落・不正なら再読み込みを案内</td></tr>
+      <tr><td>一覧を初期化</td><td>POST /examples/updating-other-content/reset</td><td>200・空の一覧を含むパネルを差し替え、件数と通知を OOB 差し替え。版が欠落・不正なら422</td></tr>
+      <tr><td>古いフォームから更新</td><td>各 POST</td><td>409・版の不一致を拒否。通常フォームでは入力を保持して再読み込みを案内</td></tr>
+      <tr><td>CSRF 不正・HTTP エラー・通信失敗</td><td>各 POST</td><td>状態を成功扱いにせず、共通エラーを通知</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>hx-target="#contacts-panel"</code> が主な更新先です。応答内の <code>hx-swap-oob</code> はパネルの外にある件数と通知を、それぞれの ID を持つ領域へ別に適用します。</li>
+      <li>外部 JavaScript は成功応答の後だけ入力を初期化し、422・HTTP エラー・通信失敗では入力を保持します。通信中は追加・初期化を無効にし、同じ領域の重複要求を抑止します。</li>
+      <li>別案として、ページの更新範囲をさらに広げて件数や通知までまとめて置換すれば OOB は不要です。代わりに応答 HTML が広くなり、フォーカスを保持する対象も増えます。</li>
+      <li>イベント発火方式では、POST 成功後にイベントを発火し、一覧が別の GET で再取得します。取得リクエストが増えるため、この例では一つの応答で整合して更新できる OOB を選びます。</li>
+      <li>通常フォームでも追加・初期化ができ、成功後は PRG でページ全体を表示します。CSRF を維持し、Thymeleaf が入力値をエスケープします。</li>
+      <li>追加・初期化のたびにフォームの版を更新します。同じセッションの別タブから古い版で送信すると409になり、上書きや追加を拒否します。htmx では入力を保持して通知し、JavaScript 無効時は最新一覧と入力値を含むページを表示します。入力版が欠落・不正な場合は422で再読み込みリンクを表示します。遅れて届いた古い応答も、表示中の版より古ければ JavaScript が差し替えを止めます。</li>
+    </ul>
+    <h2>状態・異常系と制約</h2>
+    <p>架空の連絡先は HTTP セッションごとに分離され、最大20件です。再起動またはセッション失効で消えます。初期化すると現在のセッションだけが空になります。データベース保存・外部送信は行いません。</p>
+    <p>名前は必須・60文字以内、メールアドレスは必須・形式検証・254文字以内です。上限到達時は422で追加を拒否します。CSRF エラー、古い版の409、その他の HTTP エラー、通信断・10秒のタイムアウトでは成功と見なさず、一覧と入力を成功後の状態にしません。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/update-other-content/">htmx 公式 Updating Other Content</a> の複数領域を更新する課題を使い、主領域の差し替えに加えて <code>hx-swap-oob</code> で件数と通知を更新します。公式の「更新範囲を広げる」「OOB」「イベント発火」の考え方を解説で比較し、外部拡張なしの OOB を実装します。入力検証・CSRF・セッション分離・上限・通常フォームを追加しています。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<body>
+<li th:fragment="notificationItem"
+    class="live-notification"
+    th:classappend="${notification.severity}"
+    data-notification-item>
+  <p><strong th:text="${notification.category}"></strong>：
+    <span th:text="${notification.message}"></span>
+  </p>
+  <time th:attr="datetime=${notification.receivedAt}" th:text="${notification.receivedAt}"></time>
+</li>
+</body>
+</html>

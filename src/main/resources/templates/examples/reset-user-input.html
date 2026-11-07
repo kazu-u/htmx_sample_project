@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>送信成功後に入力を初期化 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/reset-user-input.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('reset-user-input')}"></aside>
+<main>
+  <h1>送信成功後に入力を初期化</h1>
+  <p>メモの送信が成功した場合だけ、外部 JavaScript からフォームの <code>reset()</code> を呼び、次の入力に備えます。</p>
+  <ol>
+    <li>メモを入力して「追加」を押し、一覧への追加と入力欄の初期化を確認します。</li>
+    <li>空欄または121文字以上で送信し、422のエラーと入力値の保持を確認します。</li>
+    <li>入力を修正して再送信し、成功応答後にだけ欄が空になることを確認します。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時も通常フォームで送信できます。成功時はページ全体を再表示し、入力を初期化します。入力エラーでは入力値を残してページ全体を再表示します。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">メモを送信しています…</p>
+  <section aria-labelledby="form-title" data-request-region>
+    <h2 id="form-title">メモを追加</h2>
+    <form id="note-form" method="post" th:action="@{/examples/reset-user-input}" novalidate
+          th:object="${noteForm}" th:attr="hx-post=@{/examples/reset-user-input}"
+          hx-target="#note-list" hx-swap="afterbegin" hx-sync="this:drop"
+          hx-indicator="#loading" hx-disabled-elt="#note-text, #note-submit">
+      <label for="note-text">メモ（必須・120文字以内）</label>
+      <textarea id="note-text" th:field="*{text}" rows="3"
+                aria-describedby="note-error" th:attr="aria-invalid=${noteError != null ? 'true' : null}"></textarea>
+      <p id="note-error" class="field-error" role="alert" th:text="${noteError}"></p>
+      <button id="note-submit" type="submit">追加</button>
+    </form>
+  </section>
+  <section aria-labelledby="notes-title">
+    <h2 id="notes-title">このページで追加したメモ</h2>
+    <ul id="note-list" aria-live="polite" aria-relevant="additions">
+      <li th:if="${submittedNote != null}" th:text="${submittedNote}"></li>
+    </ul>
+  </section>
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>htmx は成功したメモを先頭に追加し、フォーム本体は置換しません</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答と画面更新</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/reset-user-input</td><td>200・ページ全体</td></tr>
+      <tr><td>有効なメモを追加</td><td>POST /examples/reset-user-input</td><td>200・htmx はメモの断片を一覧の先頭へ追加してフォームを初期化。通常フォームはページ全体を表示</td></tr>
+      <tr><td>空欄・文字数超過</td><td>同上</td><td>422・htmx はエラーを表示し入力欄を保持。通常フォームは値を保持したページ全体</td></tr>
+      <tr><td>CSRF 不正・HTTP エラー・通信失敗</td><td>同上</td><td>入力値を成功扱いで消去せず、共通通知を表示</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>hx-target="#note-list"</code> と <code>hx-swap="afterbegin"</code> は成功したメモを一覧の先頭に追加します。422応答は <code>hx-swap-oob</code> でエラー欄だけを置換するため、入力フォームと一覧を壊しません。</li>
+      <li>外部 JavaScript は <code>htmx:afterRequest</code> のHTTP 2xx応答だけで <code>form.reset()</code> を呼びます。共通処理が422断片を差し替え可能にするため、htmxの <code>successful</code> フラグではなくHTTPステータスを確認し、422・その他の失敗では値を残します。インラインスクリプトや <code>hx-on</code> は使いません。</li>
+      <li>通常フォームでは htmx の差し替えを行わず、成功後にサーバーが空のフォームを含むページを返します。</li>
+      <li>フォームは CSRF 保護された POST です。送信中は二重送信を抑え、422時は入力欄へフォーカスします。送信中に無効化された操作へフォーカスが落ちた場合は、成功・その他の失敗の後に元の操作へ戻します。Thymeleaf がメモをエスケープして表示します。</li>
+    </ul>
+    <h2>異常系と制約</h2>
+    <p>空欄または121文字以上のメモは422で拒否されます。120文字の境界は有効です。文字数はJavaの文字列長で検証します。入力は保持され、修正後に再送信できます。403・HTTPエラー・通信断・10秒のタイムアウトでは成功と見なさず、フォームの内容を消去しません。</p>
+    <p>メモは固定データにもサーバー状態にも保存しません。htmx で追加したメモは現在のページ上に表示され、再読み込みで消えます。通常フォームの成功応答では今回のメモだけをページに表示します。実際の保存・共有・機密情報の送信は行わない学習用例です。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/reset-user-input/">htmx 公式 Reset User Input</a> の「成功時だけ入力を初期化する」考え方を使います。公式例の <code>hx-on::after-request</code> によるインライン処理は、CSP と htmx の安全設定に合わせて外部 JavaScript のイベントリスナーに置き換え、サーバー側の入力検証・422・CSRF・通常フォーム・日本語解説を加えています。追加依存はありません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

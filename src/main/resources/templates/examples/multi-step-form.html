@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>複数ステップフォーム | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('multi-step-form')}"></aside>
+<main>
+  <h1>複数ステップフォーム</h1>
+  <p>架空の出張申請を例に、入力を段階ごとにサーバー検証し、セッション内の下書きを確認して完了します。</p>
+  <ol>
+    <li>申請者の氏名と部署を入力します。</li>
+    <li>行き先・期間・目的を入力します。終了日は開始日以降にしてください。</li>
+    <li>確認画面で内容を見直し、「申請を完了する」を押します。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時も通常フォームで送信できます。操作ごとにページ全体が表示されます。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">入力内容を確認しています…</p>
+
+  <section id="application-wizard" th:fragment="wizard" aria-labelledby="wizard-title"
+           data-request-region hx-sync="#application-wizard:drop"
+           hx-indicator="#loading">
+    <h2 id="wizard-title" tabindex="-1" data-step-heading
+        th:text="${snapshot.completed ? '申請完了' : '申請の進行状況'}">申請の進行状況</h2>
+    <p class="notice" role="status" th:if="${notice}" th:text="${notice}"></p>
+    <ol aria-label="入力の進み具合">
+      <li th:attr="aria-current=${snapshot.currentStep == 1 ? 'step' : null}">申請者</li>
+      <li th:attr="aria-current=${snapshot.currentStep == 2 ? 'step' : null}">出張内容</li>
+      <li th:attr="aria-current=${snapshot.currentStep == 3 ? 'step' : null}">確認</li>
+    </ol>
+
+    <div th:if="${snapshot.currentStep == 1}">
+      <h3>1. 申請者</h3>
+      <form th:object="${applicationForm}" method="post" novalidate
+            th:action="@{/examples/multi-step-form/applicant}"
+            th:attr="hx-post=@{/examples/multi-step-form/applicant}"
+            hx-target="#application-wizard" hx-swap="outerHTML"
+            hx-disabled-elt="find button">
+        <input type="hidden" th:field="*{revision}">
+        <label for="applicant-name">申請者名（必須・40文字以内）</label>
+        <input id="applicant-name" type="text" th:field="*{applicantName}" maxlength="40" required
+               autocomplete="name" aria-describedby="applicant-name-error"
+               th:attr="aria-invalid=${#fields.hasErrors('applicantName')}">
+        <p id="applicant-name-error" class="field-error" role="alert">
+          <span th:if="${#fields.hasErrors('applicantName')}" th:errors="*{applicantName}"></span>
+        </p>
+        <label for="department">部署（必須・40文字以内）</label>
+        <input id="department" type="text" th:field="*{department}" maxlength="40" required
+               aria-describedby="department-error"
+               th:attr="aria-invalid=${#fields.hasErrors('department')}">
+        <p id="department-error" class="field-error" role="alert">
+          <span th:if="${#fields.hasErrors('department')}" th:errors="*{department}"></span>
+        </p>
+        <button type="submit">次へ（出張内容）</button>
+      </form>
+    </div>
+
+    <div th:if="${snapshot.currentStep == 2}">
+      <h3>2. 出張内容</h3>
+      <form th:object="${applicationForm}" method="post" novalidate
+            th:action="@{/examples/multi-step-form/travel}"
+            th:attr="hx-post=@{/examples/multi-step-form/travel}"
+            hx-target="#application-wizard" hx-swap="outerHTML"
+            hx-disabled-elt="find button">
+        <input type="hidden" th:field="*{revision}">
+        <label for="destination">行き先（必須・80文字以内）</label>
+        <input id="destination" type="text" th:field="*{destination}" maxlength="80" required
+               aria-describedby="destination-error"
+               th:attr="aria-invalid=${#fields.hasErrors('destination')}">
+        <p id="destination-error" class="field-error" role="alert">
+          <span th:if="${#fields.hasErrors('destination')}" th:errors="*{destination}"></span>
+        </p>
+        <label for="start-date">開始日（必須）</label>
+        <input id="start-date" type="date" th:field="*{startDate}" required
+               aria-describedby="start-date-error"
+               th:attr="aria-invalid=${#fields.hasErrors('startDate')}">
+        <p id="start-date-error" class="field-error" role="alert">
+          <span th:if="${#fields.hasErrors('startDate')}" th:errors="*{startDate}"></span>
+        </p>
+        <label for="end-date">終了日（必須）</label>
+        <input id="end-date" type="date" th:field="*{endDate}" required
+               aria-describedby="end-date-error"
+               th:attr="aria-invalid=${#fields.hasErrors('endDate')}">
+        <p id="end-date-error" class="field-error" role="alert">
+          <span th:if="${#fields.hasErrors('endDate')}" th:errors="*{endDate}"></span>
+        </p>
+        <label for="purpose">目的（必須・200文字以内）</label>
+        <textarea id="purpose" th:field="*{purpose}" maxlength="200" required rows="4"
+                  aria-describedby="purpose-error"
+                  th:attr="aria-invalid=${#fields.hasErrors('purpose')}"></textarea>
+        <p id="purpose-error" class="field-error" role="alert">
+          <span th:if="${#fields.hasErrors('purpose')}" th:errors="*{purpose}"></span>
+        </p>
+        <button type="submit" name="action" value="back">戻る（申請者）</button>
+        <button type="submit" name="action" value="next">次へ（確認）</button>
+      </form>
+    </div>
+
+    <div th:if="${snapshot.currentStep == 3}">
+      <h3>3. 申請内容の確認</h3>
+      <dl>
+        <dt>申請者名</dt><dd th:text="${snapshot.applicantName}"></dd>
+        <dt>部署</dt><dd th:text="${snapshot.department}"></dd>
+        <dt>行き先</dt><dd th:text="${snapshot.destination}"></dd>
+        <dt>期間</dt>
+        <dd><time th:text="${snapshot.startDate}"></time> 〜 <time th:text="${snapshot.endDate}"></time></dd>
+        <dt>目的</dt><dd th:text="${snapshot.purpose}"></dd>
+      </dl>
+      <form method="post" th:action="@{/examples/multi-step-form/back-to-travel}"
+            th:attr="hx-post=@{/examples/multi-step-form/back-to-travel}"
+            hx-target="#application-wizard" hx-swap="outerHTML"
+            hx-disabled-elt="find button">
+        <input type="hidden" name="revision" th:value="${snapshot.revision}">
+        <button type="submit">戻る（出張内容を修正）</button>
+      </form>
+      <form method="post" th:action="@{/examples/multi-step-form/complete}"
+            th:attr="hx-post=@{/examples/multi-step-form/complete}"
+            hx-target="#application-wizard" hx-swap="outerHTML"
+            hx-disabled-elt="find button">
+        <input type="hidden" name="revision" th:value="${snapshot.revision}">
+        <button type="submit">申請を完了する</button>
+      </form>
+    </div>
+
+    <div th:if="${snapshot.completed}">
+      <p id="completed-message" role="status" tabindex="-1">架空の申請を完了しました。このサンプルは申請を保存・送信しません。</p>
+      <dl>
+        <dt>申請者名</dt><dd th:text="${snapshot.applicantName}"></dd>
+        <dt>行き先</dt><dd th:text="${snapshot.destination}"></dd>
+      </dl>
+    </div>
+
+    <form method="post" th:action="@{/examples/multi-step-form/reset}"
+          th:attr="hx-post=@{/examples/multi-step-form/reset}"
+          hx-target="#application-wizard" hx-swap="outerHTML"
+          hx-disabled-elt="find button">
+      <input type="hidden" name="revision" th:value="${snapshot.revision}">
+      <button type="submit">最初からやり直す（入力を消去）</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <p>Controller は送信された段階だけを検証し、セッション内の下書きを更新します。htmx は JSON を組み立てず、返された HTML で申請フォーム領域を置き換えます。</p>
+    <table>
+      <caption>すべて /examples/multi-step-form 配下。htmx 使用時は #application-wizard を更新</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答</th></tr></thead>
+      <tbody>
+      <tr><td>表示・現在段階の再表示</td><td>GET /examples/multi-step-form</td><td>200・ページ全体（htmxなし）</td></tr>
+      <tr><td>申請者を検証して次へ</td><td>POST /applicant</td><td>200・次の断片、通常フォームは成功後にリダイレクト。不備は422</td></tr>
+      <tr><td>出張内容を検証して確認へ</td><td>POST /travel?action=next</td><td>200・確認断片、通常フォームは成功後にリダイレクト。不備は422</td></tr>
+      <tr><td>出張内容を保って戻る</td><td>POST /travel?action=back</td><td>200・申請者断片、通常フォームは成功後にリダイレクト</td></tr>
+      <tr><td>確認から戻る</td><td>POST /back-to-travel</td><td>200・出張内容断片、通常フォームは成功後にリダイレクト</td></tr>
+      <tr><td>確認して完了</td><td>POST /complete</td><td>200・完了断片、通常フォームは成功後にリダイレクト</td></tr>
+      <tr><td>下書きを消去</td><td>POST /reset</td><td>200・初期段階断片、通常フォームは成功後にリダイレクト</td></tr>
+      <tr><td>古い画面・現在段階と異なる操作</td><td>上記 POST</td><td>409・状態を変更しない</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>各 POST は CSRF トークンを検証します。申請者と出張内容を別段階で検証し、次の段階へ進む前に不備を422で返します。</li>
+      <li>前段階へ戻る操作も POST で、入力中の値を下書きに保持します。段階を飛ばした要求や古い revision は409で拒否します。</li>
+      <li>htmx 使用時は HTML 断片、通常フォームでは成功後にページ全体を表示します。エラー時は入力値と項目別エラーを残します。</li>
+      <li>画面内の戻る・次へを提供します。段階をURLやブラウザー履歴へ記録しないため、ブラウザー履歴による段階移動は行いません。</li>
+    </ul>
+    <h2>異常系と復帰</h2>
+    <p>申請者を空欄にする、行き先を空欄にする、終了日を開始日より前にするなどで422になります。値を直して再送信できます。通信断・HTTPエラー・10秒のタイムアウトでは共通通知を表示し、現在のフォームを残します。</p>
+    <p>別タブで先に段階を進めてから古いタブを送信すると409になります。ページを再読み込みして最新状態を確認してください。20分のセッション期限後は、CSRF トークンも失効して更新要求が403になることがあります。ページを再読み込みすると新しい空のフォームから始まります。</p>
+    <h2>状態の寿命と制約</h2>
+    <p>下書きはセッションごとに1件で、20分の無通信またはサーバー再起動で消えます。明示的なリセットでも消去できます。ブラウザーや別セッションとは共有しません。サンプルは架空の内容だけを入力してください。</p>
+    <p>確定操作は完了画面へ遷移するだけで、DB・外部 API・業務登録は行いません。依存追加はありません。外部公開には認証・認可・HTTPS・負荷対策が必要です。サーバー全体のセッションは100個までで、上限到達時は503です。</p>
+    <h2>公式例との差分・出典</h2>
+    <p>htmx 公式の <a href="https://htmx.org/docs/#validation">Validation</a> と <a href="https://htmx.org/docs/#progressive-enhancement">Progressive Enhancement</a> の考え方を参考に、複数段階のサーバー検証・セッション内下書き・確認・リセットをこのプロジェクト向けに構成しました。公式例の逐語転記ではなく、標準フォームと CSRF 保護を維持しています。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

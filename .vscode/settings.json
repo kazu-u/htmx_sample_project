@@ -1,0 +1,17 @@
+{
+  "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+  "chat.permissions.default": "default",
+  "chat.defaultConfiguration": {
+    "mode": "interactive",
+    "approvals": "manual"
+},
+  "chat.tools.global.autoApprove": false,
+  "chat.tools.terminal.enableAutoApprove": false,
+  "chat.tools.urls.autoApprove": {
+    "*": false
+  },
+  "chat.tools.eligibleForAutoApproval": {
+    "fetch": false,
+    "runTask": false
+  }
+}

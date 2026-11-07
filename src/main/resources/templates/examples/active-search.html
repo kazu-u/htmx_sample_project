@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>入力に応じた検索 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/active-search.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('active-search')}"></aside>
+<main>
+  <h1>入力に応じた検索</h1>
+  <p>名前・チーム・メールのいずれかに検索語を含む架空の担当者を表示します。入力を止めて500ms後に結果だけを更新します。</p>
+  <ol>
+    <li>「佐藤」「開発」「SATO」などを入力し、検索結果と件数の変化を確認します。</li>
+    <li>「該当なし」を入力すると0件、欄を空にすると全8件です。</li>
+    <li>Enterキーまたは「検索する」で待たずに検索できます。日本語の変換中は送信しません。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時は、自動検索を行いません。「検索する」で通常のGET検索ができます。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">検索中です…</p>
+  <form id="search-form" method="get" novalidate th:object="${searchForm}"
+        th:action="@{/examples/active-search}" th:attr="hx-get=@{/examples/active-search}"
+        hx-trigger="submit, active-search" hx-target="#search-results" hx-swap="outerHTML"
+        hx-sync="this:replace" hx-indicator="#loading">
+    <label for="search-query">検索語（60文字以内）</label>
+    <input id="search-query" type="search" th:field="*{query}" maxlength="60"
+           aria-describedby="search-help search-error" th:attr="aria-invalid=${#fields.hasErrors('query')}">
+    <p id="search-help">前後の空白を除いて部分一致で検索します。英字の大文字・小文字は区別しません。架空データだけを入力してください。</p>
+    <button type="submit">検索する</button>
+    <a th:href="@{/examples/active-search}">検索条件を空に戻す</a>
+  </form>
+  <p id="search-hint" role="status">現在の検索条件の結果です。</p>
+  <!-- 入力欄は残し、件数・エラー・一覧をまとめて差し替える。 -->
+  <section id="search-results" th:fragment="searchResults" th:object="${searchForm}"
+           aria-labelledby="results-title" data-request-region>
+    <h2 id="results-title">検索結果</h2>
+    <p id="search-error" class="field-error" role="status">
+      <span th:if="${#fields.hasErrors('query')}" data-search-error th:errors="*{query}"></span>
+    </p>
+    <th:block th:unless="${#fields.hasErrors('query')}">
+      <p role="status" id="search-count" th:text="|${#lists.size(contacts)}件です。|"></p>
+      <p>検索語: <span id="searched-query" th:text="${searchForm.query}"></span></p>
+      <p th:if="${#lists.isEmpty(contacts)}">該当する担当者はいません。別の検索語を試してください。</p>
+      <table th:unless="${#lists.isEmpty(contacts)}">
+        <caption>学習用の架空データ（最大8件）</caption>
+        <thead><tr><th scope="col">名前</th><th scope="col">チーム</th><th scope="col">メール</th></tr></thead>
+        <tbody><tr th:each="contact : ${contacts}">
+          <td th:text="${contact.name}"></td><td th:text="${contact.team}"></td><td th:text="${contact.email}"></td>
+        </tr></tbody>
+      </table>
+    </th:block>
+  </section>
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>検索は参照のみで、業務状態を変更しません</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答と差し替え先</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示・通常フォーム・条件の初期化</td><td>GET /examples/active-search?query=検索語</td><td>200・ページ全体。query省略・空欄は全件</td></tr>
+      <tr><td>入力後500ms待機・Enter・検索ボタン</td><td>同じGET</td><td>200・#search-results全体。0件も正常応答</td></tr>
+      <tr><td>60文字を超える検索語</td><td>同じGET</td><td>422・検索結果の代わりに項目別エラー。通常要求は全体ページ</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>ActiveSearchController が固定8件を部分一致検索し、Thymeleaf がHTMLを返します。SearchForm は前後空白を除く前の文字列長（JavaのUTF-16）を60までに制限します。</li>
+      <li><code>hx-get</code> は送信先、<code>hx-target="#search-results"</code> と <code>hx-swap="outerHTML"</code> は結果領域だけの置換です。入力は差し替えずフォーカス・カーソルを維持します。</li>
+      <li>active-search.js が input と composition イベントを扱い、変換終了後500msで独自イベントを送ります。Enter・ボタンの送信では待機タイマーを解除し、変換中の送信は抑止します。</li>
+      <li><code>hx-trigger="submit, active-search"</code> は通常送信と独自イベント、<code>hx-sync="this:replace"</code> は進行中の検索を最新検索で置き換えます。送信前に入力が変わった場合も旧200/422応答は反映しません。</li>
+      <li>検索中も入力・ボタンは有効です。<code>hx-indicator</code> と aria-busy が通信中を示し、結果が古い間は案内を表示します。共通app.jsが422・HTTPエラー・通信失敗を処理します。</li>
+    </ul>
+    <h2>異常系と復帰</h2>
+    <p>開発者ツールでmaxlengthを外し61文字送ると422です。入力とエラーを保持し、修正して再検索できます。通信断・10秒のタイムアウト・503などは共通通知し、入力と直前の結果を残します。接続を戻し「検索する」で同じ条件でも再試行できます。</p>
+    <h2>状態・制約と安全性</h2>
+    <p>業務状態や検索履歴はサーバーに保存しません。GETの検索語はURL・ブラウザー履歴・アクセスログ等に残り得るので、個人情報や秘密情報を入力しないでください。CSRF用セッションは既存構成（無通信20分・全体100個）に従います。検索は参照のみのGETなのでCSRFトークンを送らず、更新操作の保護は変更しません。</p>
+    <p>検索は名前・チーム・メールのいずれかに一致する単一の文字列で、複数語のAND検索・全角半角やかなの同一視・ページ分割・DB・外部APIは扱いません。サーバーが初期結果を表示するため、初回表示のための追加通信も不要です。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/active-search/">htmx公式 Active Search</a> の入力待機と結果更新を参考に独自実装しました。公式例のPOST・イベント条件式・load取得ではなく、GET・外部JavaScriptでのIME制御・サーバーでの初期表示を採用し、安全設定allowEval:falseを維持しています。追加依存はありません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

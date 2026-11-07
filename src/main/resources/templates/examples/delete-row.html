@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>行を削除 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+</head>
+<body>
+<header>
+  <a th:href="@{/}">Spring Boot + htmx サンプル</a>
+</header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('delete-row')}"></aside>
+<main>
+  <h1>行を削除</h1>
+  <p>一覧の行から削除を実行し、成功した行だけを画面から取り除きます。</p>
+  <ol>
+    <li>削除したい行の「削除する」を押し、確認ダイアログで確定します。</li>
+    <li>その行だけが消え、残りの一覧はそのまま表示されます。</li>
+    <li>「初期状態に戻す」で、このブラウザーの一覧を元に戻せます。</li>
+  </ol>
+  <noscript><p>JavaScript が無効の場合も通常フォームで操作できます。行の削除には確認欄へのチェックが必要です。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">削除しています…</p>
+
+  <section id="task-list" aria-labelledby="task-list-title" data-request-region>
+    <h2 id="task-list-title" tabindex="-1">架空の作業一覧</h2>
+    <p class="notice" role="status" th:if="${notice}" th:text="${notice}"></p>
+    <p>すべて学習用の架空データです。行は現在のセッションだけに保存されます。</p>
+    <table>
+      <caption>htmx要求の差し替え先は、削除した行全体です</caption>
+      <thead>
+      <tr><th scope="col">作業</th><th scope="col">担当者</th><th scope="col">状態</th><th scope="col">操作</th></tr>
+      </thead>
+      <tbody id="tasks" th:fragment="taskRows"
+             hx-confirm="この行を削除しますか？"
+             hx-target="closest tr" hx-swap="outerHTML">
+      <tr th:each="task : ${tasks}" th:id="|task-row-${task.id}|">
+        <td th:text="${task.title}"></td>
+        <td th:text="${task.owner}"></td>
+        <td th:text="${task.status}"></td>
+        <td>
+          <form method="post" th:action="@{/examples/delete-row/{id}(id=${task.id})}"
+                th:attr="hx-delete=@{/examples/delete-row/{id}(id=${task.id})}"
+                hx-params="none" hx-sync="closest tr:drop" hx-disabled-elt="find button"
+                hx-indicator="#loading">
+            <noscript>
+              <label class="confirmation-label">
+                <input type="checkbox" name="confirmDelete" value="true" required>
+                この行の削除を確認
+              </label>
+            </noscript>
+            <button type="submit">削除する</button>
+          </form>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+    <p id="empty-list-message" th:hidden="${!#lists.isEmpty(tasks)}">一覧に作業はありません。</p>
+    <form method="post" th:action="@{/examples/delete-row/reset}">
+      <button type="submit">初期状態に戻す</button>
+    </form>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <p>htmx は削除対象 ID へ DELETE を送り、サーバーは状態を削除した後、空の200応答を返します。空の応答と <code>hx-swap="outerHTML"</code> の組み合わせで、対象行が取り除かれます。</p>
+    <table>
+      <caption>削除は現在のセッションの一覧だけに反映します</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答と画面</th></tr></thead>
+      <tbody>
+      <tr><td>一覧表示</td><td>GET /examples/delete-row</td><td>200・ページ全体。htmx では tbody 断片</td></tr>
+      <tr><td>行の削除</td><td>DELETE /examples/delete-row/{id}</td><td>200・空の応答。対象行を削除</td></tr>
+      <tr><td>JavaScript 無効時の削除</td><td>POST /examples/delete-row/{id}</td><td>確認欄を検証後、一覧へリダイレクト</td></tr>
+      <tr><td>初期化</td><td>POST /examples/delete-row/reset</td><td>一覧を初期状態に戻してリダイレクト</td></tr>
+      <tr><td>存在しない ID</td><td>DELETE /examples/delete-row/{id}</td><td>404・行は変更しない</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>hx-delete</code> は更新要求、親の <code>hx-confirm</code> はブラウザー確認、<code>hx-target="closest tr"</code> と <code>hx-swap="outerHTML"</code> は行単位の差し替えを指定します。</li>
+      <li>通常フォームは POST を使い、Spring Security の CSRF トークンと、JavaScript 無効時の確認チェックをサーバー側で検証します。GET では削除しません。</li>
+      <li>通常フォーム用の CSRF hidden 項目は htmx の DELETE パラメーターから除外し、共有 JavaScript がトークンをヘッダーだけに付けます。通信中は削除ボタンを無効にし、並行要求がある間は一覧の処理中状態を保ちます。</li>
+      <li>応答がエラーなら行を残し、利用者へ通知します。成功して行が消えた後は、隣の行か一覧見出しへフォーカスを移します。</li>
+      <li>削除はセッション内で同期して行い、存在しない ID は404です。別セッションの一覧には影響しません。</li>
+      <li>JavaScript が有効な場合に確認ダイアログを使います。htmx は同一オリジンだけに要求し、断片内スクリプトと式評価は無効です。</li>
+    </ul>
+    <h2>異常系と状態の寿命</h2>
+    <ul>
+      <li>開発者ツールで ID を存在しない値に変えると404となり、一覧は変化しません。</li>
+      <li>CSRF トークンのない更新は403です。通信断・タイムアウトでは成功したと決めつけず、通知を確認して一覧を再取得してください。</li>
+      <li>状態はセッション単位の4件から始まり、削除・初期化はそのセッションだけに反映します。20分の無通信またはサーバー再起動で初期状態に戻ります。</li>
+    </ul>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/delete-row/">htmx 公式 Delete Row</a> の <code>hx-delete</code>、確認、行ターゲット、空応答という考え方を参考に、Spring MVC / Thymeleaf で独自実装しています。</p>
+    <p>公式例に CSRF、セッション分離、通常フォーム用 POST と確認欄、初期化、異常応答、キーボードフォーカスの復帰を加えました。アニメーションや追加ライブラリは使用しません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

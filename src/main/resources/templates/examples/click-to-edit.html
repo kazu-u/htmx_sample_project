@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>クリックで編集 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+</head>
+<body>
+<header>
+  <a th:href="@{/}">Spring Boot + htmx サンプル</a>
+</header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('click-to-edit')}"></aside>
+<main>
+  <h1>クリックで編集</h1>
+  <p>表示を編集フォームに切り替え、保存後は連絡先の部分だけを更新します。</p>
+  <ol>
+    <li>「編集する」を押し、名前とメールアドレスを変更します。</li>
+    <li>「保存する」で反映、「キャンセル」で保存せず表示へ戻ります。</li>
+    <li>名前を空欄にして保存すると、入力を残したままエラーを表示します。</li>
+  </ol>
+  <noscript><p>JavaScript が無効のため、操作のたびにページ全体が表示されます。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">通信中です…</p>
+
+  <!-- contact だけを返すと、説明を残したまま表示・フォームを置き換えられる。 -->
+  <section id="contact" th:fragment="contact" aria-labelledby="contact-title" data-request-region
+           hx-target="this" hx-swap="outerHTML" hx-sync="this:drop"
+           hx-indicator="#loading" hx-disabled-elt="#contact button">
+    <h2 id="contact-title" tabindex="-1">架空の連絡先</h2>
+    <p class="notice" role="status" th:if="${notice}" th:text="${notice}"></p>
+    <th:block th:unless="${editing}">
+      <dl>
+        <dt>名前</dt><dd id="saved-name" th:text="${contact.name}"></dd>
+        <dt>メールアドレス</dt><dd id="saved-email" th:text="${contact.email}"></dd>
+      </dl>
+      <form method="get" th:action="@{/examples/click-to-edit/contact/edit}"
+            th:attr="hx-get=@{/examples/click-to-edit/contact/edit}">
+        <button id="edit-button" type="submit">編集する</button>
+      </form>
+      <form method="post" th:action="@{/examples/click-to-edit/reset}"
+            th:attr="hx-post=@{/examples/click-to-edit/reset}">
+        <input type="hidden" name="revision" th:value="${contact.revision}">
+        <button type="submit">初期状態に戻す</button>
+      </form>
+    </th:block>
+    <form th:if="${editing}" th:object="${contactForm}" method="post" novalidate
+          th:action="@{/examples/click-to-edit/contact}"
+          th:attr="hx-post=@{/examples/click-to-edit/contact}">
+      <input type="hidden" th:field="*{revision}">
+      <p id="revision-error" th:if="${#fields.hasErrors('revision')}" th:errors="*{revision}"
+         tabindex="-1" role="alert"></p>
+      <label for="name">名前（必須・60文字以内）</label>
+      <input id="name" type="text" th:field="*{name}" maxlength="60" required autocomplete="name"
+             aria-describedby="name-error" th:attr="aria-invalid=${#fields.hasErrors('name')}">
+      <p id="name-error" class="field-error"><span th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></span></p>
+      <label for="email">メールアドレス（必須・254文字以内）</label>
+      <input id="email" type="email" th:field="*{email}" maxlength="254" required autocomplete="email"
+             aria-describedby="email-error" th:attr="aria-invalid=${#fields.hasErrors('email')}">
+      <p id="email-error" class="field-error"><span th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></span></p>
+      <button type="submit">保存する</button>
+      <a th:href="@{/examples/click-to-edit/contact}"
+         th:attr="hx-get=@{/examples/click-to-edit/contact}">キャンセル</a>
+    </form>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <p>Controller が操作を受け付け、Thymeleaf が HTML を生成します。htmx は JSON を組み立てず、返された HTML で連絡先の領域を置き換えます。</p>
+    <table>
+      <caption>すべて /examples/click-to-edit 配下。htmx 使用時の更新先は #contact</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/click-to-edit</td><td>200・ページ全体</td></tr>
+      <tr><td>編集</td><td>GET /contact/edit</td><td>200・フォーム断片</td></tr>
+      <tr><td>保存</td><td>POST /contact</td><td>200・表示断片。不正入力は422・フォーム断片</td></tr>
+      <tr><td>キャンセル</td><td>GET /contact</td><td>200・保存済みの表示断片</td></tr>
+      <tr><td>初期化</td><td>POST /reset</td><td>200・初期表示断片</td></tr>
+      </tbody>
+    </table>
+    <p>通常フォームの保存・初期化は成功後にページへリダイレクトします。不正入力は422でページ全体を返します。</p>
+    <ul>
+      <li><code>hx-get / hx-post</code> は送信先、<code>hx-target="this"</code> は更新先、<code>hx-swap="outerHTML"</code> は領域ごとの置換です。</li>
+      <li><code>hx-sync="this:drop"</code> は同じ領域の通信中に重複要求を捨てます。サーバーも版を照合し、別タブの古い保存・初期化を409で拒否します。</li>
+      <li>版が古い要求は入力エラーの有無より先に409で拒否します。revision が空欄・36文字超過などの入力制約に反する場合は422になり、制約内でも現在の版と一致しない場合は409になります。</li>
+      <li>ContactState はセッション単位の状態、ContactForm は入力制約、ClickToEditController は通信と表示の選択、app.js は CSRF・エラー・フォーカスを担当します。</li>
+    </ul>
+    <h2>異常系の試し方</h2>
+    <ul>
+      <li>名前を空欄、メールを不正形式にして保存すると422になります。名前は Java の文字列長で60、メールは254を上限とします。</li>
+      <li>同じブラウザーの別タブで編集画面を開き、一方を保存してから他方を保存すると409です。入力は画面に残るので必要なら控え、再読み込みして編集し直します。</li>
+      <li>開発者ツールでオフラインにして操作すると通信エラーです。通信を戻して再試行できます。応答が10秒を超えるとタイムアウトします。</li>
+      <li>CSRF トークンがない・一致しない更新は403です。再読み込みしてから操作してください。存在しない URL は404です。</li>
+    </ul>
+    <h2>状態の寿命と制約</h2>
+    <p>データは架空の1件だけ。DB・外部 API は使いません。別ブラウザーとは分離し、同じセッションのタブは共有します。20分の無通信またはサーバー再起動で消えます。開いた画面の値が自動で初期表示へ変わるわけではありません。</p>
+    <p>認証なしのローカル学習用です。外部公開には認証・認可・HTTPS・負荷対策が必要です。フォームの送信内容は16KBまで（超過は413）、パラメーター数は20まで（超過は400）に制限し、ファイル送信は無効です。</p>
+    <p>サーバー全体のセッションは100個までです。上限に達して新しいセッションを作れない場合は503になります。既存の画面・セッションを使い、空きがない場合は20分の失効を待つか、ローカルサーバーを再起動してください。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/click-to-edit/">htmx 公式 Click To Edit</a> の表示と編集の切り替えを参考に、Spring MVC / Thymeleaf で独自実装しています。コードや説明の転載ではありません。</p>
+    <p>この例では氏名を1項目にまとめ、CSRF、422の検証、競合拒否、初期化、日本語説明、標準フォームの代替を追加しました。補助処理は外部 JavaScript、スタイルもローカル CSS とし、インラインスクリプトを実行しません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

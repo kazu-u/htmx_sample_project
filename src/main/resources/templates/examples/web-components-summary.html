@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${summary['title']} + ' | Web Components'">結果 | Web Components</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('web-components')}"></aside>
+<main>
+  <h1 th:text="${summary['title']}">結果</h1>
+  <p>通常リンクから表示したページです。データは学習用の固定値です。</p>
+  <div th:replace="~{examples/web-components-summary-content :: summary}"></div>
+  <p><a th:href="@{/examples/web-components}">Web Components のサンプルに戻る</a></p>
+</main>
+</div>
+</body>
+</html>

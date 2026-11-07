@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>URLで絞り込む注文一覧 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/url-driven-table.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('url-table')}"></aside>
+<main>
+  <h1>URLで絞り込む注文一覧</h1>
+  <p>検索条件・並べ替え・ページ番号を URL に含め、同じ URL から同じ一覧を再表示します。</p>
+  <ol>
+    <li>「青空」や「ORD-2026-0」を検索し、配送状態でも絞り込みます。</li>
+    <li>表の見出しで注文日・注文番号・顧客名を並べ替え、ページを移動します。</li>
+    <li>URL を再読み込み・共有し、ブラウザーの戻る・進むでも条件と一覧が戻ることを確認します。</li>
+  </ol>
+  <noscript><p>JavaScript が無効の場合も、フォームとページ移動リンクで通常の GET を利用できます。部分更新と自動履歴制御は行いません。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="orders-loading" class="htmx-indicator" role="status">注文一覧を更新しています…</p>
+
+  <section id="order-region" th:fragment="orderRegion" data-request-region
+           aria-labelledby="table-title" th:object="${query}">
+    <h2 id="table-title">架空の配送注文</h2>
+    <p>固定データ30件、1ページ5件です。条件はサーバーに保存せず、現在の URL から表示します。</p>
+    <form id="order-filter-form" method="get" novalidate th:action="@{/examples/url-table}"
+          th:attr="hx-get=@{/examples/url-table}"
+          hx-target="#order-region" hx-swap="outerHTML" hx-push-url="true"
+          hx-sync="#order-region:replace" hx-indicator="#orders-loading">
+      <label for="order-keyword">注文番号または顧客名（60文字以内）</label>
+      <input id="order-keyword" type="search" th:field="*{keyword}" maxlength="60"
+             aria-describedby="keyword-error"
+             th:attr="aria-invalid=${#fields.hasErrors('keyword')}">
+      <p id="keyword-error" class="field-error" role="status"
+         th:if="${#fields.hasErrors('keyword')}" th:errors="*{keyword}"></p>
+      <label for="order-status">配送状態</label>
+      <select id="order-status" th:field="*{status}"
+              aria-describedby="status-error"
+              th:attr="aria-invalid=${#fields.hasErrors('status')}">
+        <option th:each="option : ${statuses}" th:value="${option.value}" th:text="${option.label}">すべて</option>
+      </select>
+      <p id="status-error" class="field-error" role="status"
+         th:if="${#fields.hasErrors('status')}" th:errors="*{status}"></p>
+      <input type="hidden" name="sort" th:value="*{sort}">
+      <input type="hidden" name="direction" th:value="*{direction}">
+      <input type="hidden" name="page" value="1">
+      <button id="order-filter-submit" type="submit">条件を適用</button>
+      <a id="order-filter-reset" th:href="@{/examples/url-table}"
+         th:attr="hx-get=@{/examples/url-table}"
+         hx-target="#order-region" hx-swap="outerHTML" hx-push-url="true"
+         hx-sync="#order-region:replace">条件をすべて解除</a>
+    </form>
+
+    <p id="sort-error" class="field-error" role="status"
+       th:if="${#fields.hasErrors('sort')}" th:errors="*{sort}"></p>
+    <p id="direction-error" class="field-error" role="status"
+       th:if="${#fields.hasErrors('direction')}" th:errors="*{direction}"></p>
+    <p id="page-error" class="field-error" role="status"
+       th:if="${#fields.hasErrors('page')}" th:errors="*{page}"></p>
+
+    <div id="order-results">
+      <p id="order-count" role="status" th:text="|${totalCount}件中 ${firstResult}〜${lastResult}件を表示します。|">
+        30件中 1〜5件を表示します。
+      </p>
+      <p th:if="${totalCount == 0}">条件に一致する注文はありません。条件を変更してください。</p>
+      <table th:if="${totalCount > 0}">
+        <caption>注文日・注文番号・顧客名の見出しから並べ替えできます。</caption>
+        <thead>
+        <tr>
+          <th scope="col"
+              th:attr="aria-sort=${query.sort == 'number' ? (query.direction == 'asc' ? 'ascending' : 'descending') : null}">
+            <a id="sort-number"
+               th:with="sortDirection=${query.sort == 'number' ? nextDirection : 'asc'}"
+               th:href="@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort='number',direction=${sortDirection},page=1)}"
+               th:attr="hx-get=@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort='number',direction=${sortDirection},page=1)}"
+               hx-target="#order-region" hx-swap="outerHTML" hx-push-url="true"
+               hx-sync="#order-region:replace">注文番号</a>
+          </th>
+          <th scope="col"
+              th:attr="aria-sort=${query.sort == 'customer' ? (query.direction == 'asc' ? 'ascending' : 'descending') : null}">
+            <a id="sort-customer"
+               th:with="sortDirection=${query.sort == 'customer' ? nextDirection : 'asc'}"
+               th:href="@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort='customer',direction=${sortDirection},page=1)}"
+               th:attr="hx-get=@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort='customer',direction=${sortDirection},page=1)}"
+               hx-target="#order-region" hx-swap="outerHTML" hx-push-url="true"
+               hx-sync="#order-region:replace">顧客名</a>
+          </th>
+          <th scope="col"
+              th:attr="aria-sort=${query.sort == 'date' ? (query.direction == 'asc' ? 'ascending' : 'descending') : null}">
+            <a id="sort-date"
+               th:with="sortDirection=${query.sort == 'date' ? nextDirection : 'asc'}"
+               th:href="@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort='date',direction=${sortDirection},page=1)}"
+               th:attr="hx-get=@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort='date',direction=${sortDirection},page=1)}"
+               hx-target="#order-region" hx-swap="outerHTML" hx-push-url="true"
+               hx-sync="#order-region:replace">注文日</a>
+          </th>
+          <th scope="col">配送状態</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="order : ${orders}">
+          <th scope="row" th:text="${order.number}">ORD-2026-030</th>
+          <td th:text="${order.customer}">花畑商会</td>
+          <td th:text="${order.date}">2026-03-24</td>
+          <td th:text="${order.statusLabel}">発送済み</td>
+        </tr>
+        </tbody>
+      </table>
+      <nav th:if="${pageCount > 1}" aria-label="注文一覧のページ">
+        <a id="previous-page" th:if="${query.page > 1}"
+           th:href="@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort=${query.sort},direction=${query.direction},page=${query.page - 1})}"
+           th:attr="hx-get=@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort=${query.sort},direction=${query.direction},page=${query.page - 1})}"
+           hx-target="#order-region" hx-swap="outerHTML" hx-push-url="true"
+           hx-sync="#order-region:replace">前のページ</a>
+        <span th:each="pageNumber : ${pageNumbers}">
+          <a th:if="${pageNumber != query.page}" th:id="|page-${pageNumber}|"
+             th:href="@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort=${query.sort},direction=${query.direction},page=${pageNumber})}"
+             th:attr="hx-get=@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort=${query.sort},direction=${query.direction},page=${pageNumber})}"
+             hx-target="#order-region" hx-swap="outerHTML" hx-push-url="true"
+             hx-sync="#order-region:replace" th:text="${pageNumber}">2</a>
+          <span th:if="${pageNumber == query.page}" th:id="|page-${pageNumber}|"
+                tabindex="-1" aria-current="page" th:text="${pageNumber}">1</span>
+        </span>
+        <a id="next-page" th:if="${query.page < pageCount}"
+           th:href="@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort=${query.sort},direction=${query.direction},page=${query.page + 1})}"
+           th:attr="hx-get=@{/examples/url-table(keyword=${query.keyword},status=${query.status},sort=${query.sort},direction=${query.direction},page=${query.page + 1})}"
+           hx-target="#order-region" hx-swap="outerHTML" hx-push-url="true"
+           hx-sync="#order-region:replace">次のページ</a>
+      </nav>
+    </div>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <p>サーバーは URL の条件から一覧を絞り込み・並べ替えし、該当ページを HTML で描画します。部分応答でも条件フォームを含む一覧領域を返すため、表示と URL の状態が同期します。</p>
+    <table>
+      <caption>読み取り専用の注文データ。各 GET は状態を変更しません。</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答と差し替え先</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示・通常フォーム</td><td>GET /examples/url-table?keyword=...&amp;status=...&amp;sort=...&amp;direction=...&amp;page=...</td><td>200・ページ全体</td></tr>
+      <tr><td>条件適用・解除・並べ替え・ページ移動</td><td>同じ GET。必要な条件をクエリ文字列に含める</td><td>200・htmx 要求では #order-region。URL 履歴も更新</td></tr>
+      <tr><td>戻る・進む</td><td>現在の履歴 URL への GET</td><td>履歴復元要求にはページ全体を返し、条件と表を再描画</td></tr>
+      <tr><td>検索語60文字超過・不正な状態やソート値・ページ番号0以下</td><td>同じ GET</td><td>422・入力と項目別エラー。部分要求は #order-region を差し替え</td></tr>
+      <tr><td>範囲外のページ番号</td><td>同じ GET</td><td>404・対象ページなし。現在の htmx 表示を保ち通知</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>hx-get</code> と通常の <code>href</code> / GET フォームは同じ URL を使います。htmx のリンクには <code>hx-push-url="true"</code> を付け、操作ごとの条件をブラウザー履歴へ追加します。</li>
+      <li>戻る・進むで htmx が送る履歴復元ヘッダーを Controller が判別し、履歴キャッシュを使わない設定でも全ページを返します。応答形式の違いは <code>Vary</code> に含めます。</li>
+      <li>絞り込みと並べ替えはページを1へ戻し、既存の他条件は保持します。ページ移動は全条件を引き継ぎます。検索語は60文字以内、1ページ5件、データは固定30件です。</li>
+      <li>URL に検索語が残るため、個人情報・秘密情報を入力しないでください。条件やデータはサーバー・セッションに保存しません。CSRF 用セッションは共通構成に従います。</li>
+      <li>HTML の値は Thymeleaf がエスケープします。htmx は同一オリジンに限定し、スクリプトタグと式評価は無効です。追加依存はありません。</li>
+    </ul>
+    <h2>異常系と制約</h2>
+    <p>検索語を61文字にして送ると422となり、入力とエラーを維持します。配送状態・ソート条件・ページ番号をURL上で不正な値にすると、検証エラーまたは404を返します。タイムアウト・通信切断などでは共通通知を出し、条件と表示中の一覧を維持して、同じ操作から再試行できます。</p>
+    <p>データは架空の会社名を使った固定30件で、DB・外部 API・更新機能・複数語検索・ページサイズ変更は扱いません。GET のため CSRF トークンは送信せず、更新操作の保護設定は変更しません。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/">htmx 公式 Examples</a> の取得・差し替えを参考に、Spring MVC / Thymeleaf で独自実装しています。単純な検索結果更新ではなく、絞り込み・ソート・ページングの全状態を URL から再現できること、通常遷移と htmx 履歴を同期することを主題にしています。追加依存はありません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

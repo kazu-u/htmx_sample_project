@@ -1,0 +1,57 @@
+/* 小さな画面・キーボード操作・処理中表示に必要な範囲のスタイル。 */
+:root { color-scheme: light; font-family: system-ui, sans-serif; line-height: 1.7; color: #172b3a; background: #f5f7fa; }
+body { margin: 0; }
+header { max-width: 86rem; margin: auto; padding: 1rem; }
+header > a { font-size: 1.2rem; font-weight: bold; text-decoration: none; }
+.page-layout { display: grid; grid-template-columns: minmax(12rem, 15rem) minmax(0, 62rem); gap: 1.5rem; max-width: 86rem; margin: auto; padding: 0 1rem 1rem; }
+main { min-width: 0; padding: 0 1rem; }
+.sample-menu { position: sticky; top: 1rem; align-self: start; padding: 1rem; margin-top: 1rem; background: white; border: 1px solid #bac8d3; border-radius: .5rem; }
+.sample-menu h2 { margin-top: 0; font-size: 1.1rem; }
+.sample-menu details + details { margin-top: .35rem; }
+.sample-menu summary { padding: .35rem .5rem; border-radius: .25rem; cursor: pointer; font-weight: bold; }
+.sample-menu summary:hover { background: #f0f4f7; }
+.sample-menu ul { list-style: none; margin: .25rem 0 0; padding: 0; }
+.sample-menu li + li { margin-top: .35rem; }
+.sample-menu a { display: block; padding: .5rem .65rem; border-radius: .25rem; text-decoration: none; }
+.sample-menu a[aria-current="page"] { color: #172b3a; background: #e4eef5; font-weight: bold; }
+section { background: white; border: 1px solid #bac8d3; border-radius: .5rem; padding: 1.25rem; margin-block: 1rem; }
+a { color: #005b97; }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; color: white; background: #075b8d; padding: .5rem 1rem; border: 2px solid #075b8d; border-radius: .25rem; margin-block: .5rem; }
+button:disabled { cursor: wait; opacity: .6; }
+label { display: block; font-weight: bold; margin-top: .75rem; }
+input:not([type="hidden"]) { box-sizing: border-box; display: block; width: 100%; max-width: 32rem; padding: .5rem; border: 1px solid #5b6d7b; border-radius: .25rem; }
+textarea { box-sizing: border-box; display: block; width: 100%; max-width: 32rem; padding: .5rem; border: 1px solid #5b6d7b; border-radius: .25rem; }
+.confirmation-label input[type="checkbox"] { display: inline; width: auto; margin-inline-end: .4rem; }
+[aria-invalid="true"] { border: 2px solid #a01919 !important; }
+.field-error, #request-error { color: #9b1717; }
+#request-error { border: 2px solid currentColor; padding: .75rem; }
+.notice { border-left: .3rem solid #23743b; padding-left: .75rem; }
+:focus-visible { outline: 3px solid #b45b00; outline-offset: 3px; }
+.htmx-indicator { visibility: hidden; }
+.htmx-indicator.htmx-request { visibility: visible; }
+table { border-collapse: collapse; width: 100%; overflow-wrap: anywhere; }
+th, td { border: 1px solid #bac8d3; padding: .5rem; text-align: left; }
+caption { text-align: left; }
+.editable-table { table-layout: fixed; }
+.editable-table td { vertical-align: top; }
+.editable-table input { min-width: 0; }
+.editable-table button { max-width: 100%; }
+.scroll-window { max-height: 18rem; overflow-y: auto; }
+.component-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; }
+.component-grid > article { min-width: 0; }
+.combobox-options { box-sizing: border-box; max-width: 32rem; max-height: 16rem; overflow-y: auto; margin: .25rem 0 0; padding: 0; list-style: none; background: white; border: 1px solid #5b6d7b; border-radius: .25rem; }
+.combobox-options [role="option"] { padding: .5rem .75rem; cursor: pointer; }
+.combobox-options [role="option"][aria-selected="true"] { color: white; background: #075b8d; }
+.combobox-department { display: block; font-size: .9rem; }
+.combobox-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.scroll-table tbody th, .scroll-table tbody td { padding-block: 1.5rem; }
+.job-progress { display: block; width: 100%; max-width: 32rem; height: 1.5rem; }
+dd { margin-left: 1rem; overflow-wrap: anywhere; }
+code { overflow-wrap: anywhere; }
+@media (max-width: 48rem) {
+  .page-layout { grid-template-columns: minmax(0, 1fr); gap: 0; padding-inline: .5rem; }
+  .sample-menu { position: static; margin: 0 1rem .5rem; padding: .5rem .75rem; }
+  .sample-menu h2 { margin: 0 0 .25rem; }
+  main { padding-inline: .5rem; }
+}

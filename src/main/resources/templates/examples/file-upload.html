@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":30000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>ファイル送信 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <link rel="stylesheet" th:href="@{/css/file-upload.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/file-upload.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('file-upload')}"></aside>
+<main>
+  <h1>ファイル送信</h1>
+  <p>multipart 形式でファイルを送信し、ブラウザーからサーバーへ転送された量を表示します。サーバー側の処理進捗を表すものではありません。</p>
+  <ol>
+    <li>UTF-8 の短いテキストを含む <code>.txt</code> ファイルを選択します。</li>
+    <li>送信し、転送中の進捗とサーバーからの検証結果を確認します。</li>
+    <li>形式エラー、120文字を超えるファイル名、1 MiB 超過の場合は、エラーを確認してファイルを選び直します。</li>
+  </ol>
+  <noscript><p>JavaScript 無効時は通常の multipart フォームで送信できます。転送進捗の表示は行いません。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <section id="upload-region" aria-labelledby="upload-title" data-request-region>
+    <h2 id="upload-title">テキストファイルを送信</h2>
+    <p id="upload-help">UTF-8 の <code>.txt</code> を1件、最大1 MiBまで送信できます。ファイルの内容は検証後に保持せず、画面にも表示しません。</p>
+    <form id="file-upload-form" method="post" enctype="multipart/form-data"
+          th:action="@{/examples/file-upload}" th:attr="hx-post=@{/examples/file-upload}"
+          hx-encoding="multipart/form-data" hx-target="#upload-result" hx-swap="outerHTML"
+          hx-sync="#file-upload-form:drop" hx-disabled-elt="#upload-file, #upload-submit">
+      <label for="upload-file">UTF-8 テキストファイル（.txt）</label>
+      <input id="upload-file" type="file" name="files" accept=".txt,text/plain" required
+             aria-describedby="upload-help upload-result">
+      <button id="upload-submit" type="submit">ファイルを送信</button>
+    </form>
+    <div class="upload-progress">
+      <label for="upload-progress">ブラウザーからの送信進捗</label>
+      <progress id="upload-progress" max="100"></progress>
+      <output id="upload-progress-value">未送信</output>
+    </div>
+    <div id="upload-result" th:fragment="uploadResult">
+      <p th:if="${uploadError != null}" id="upload-validation-error"
+         data-upload-error role="alert" tabindex="-1" th:text="${uploadError}"></p>
+      <p th:if="${uploadName != null}" data-upload-success role="status"
+         th:text="|「${uploadName}」（${uploadSize} bytes）を検証しました。ファイルは保存せず、要求終了後に破棄します。|"></p>
+      <p th:if="${uploadNotice != null}" data-upload-success role="status" th:text="${uploadNotice}"></p>
+    </div>
+  </section>
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>ファイルの内容は保存せず、要求終了時に破棄します。</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答・画面更新</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/file-upload</td><td>200・ページ全体</td></tr>
+      <tr><td>ファイル送信</td><td>POST /examples/file-upload</td><td>200・htmx は結果断片、通常フォームはリダイレクト後にページ全体</td></tr>
+      <tr><td>ファイル未選択・複数・形式不正</td><td>同上</td><td>422・htmx はエラーを差し替え、通常フォームは入力を再確認するページ</td></tr>
+      <tr><td>1 MiB 超過</td><td>同上</td><td>413・上限超過を通知</td></tr>
+      <tr><td>CSRF 不正・通信失敗</td><td>同上</td><td>403・HTTPエラー・通信断を通知。成功扱いにしない</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>enctype="multipart/form-data"</code> と <code>hx-encoding</code> でファイルを含むフォームを送ります。CSRF は通常フォームのトークンと htmx の同一オリジン用ヘッダーで検証します。</li>
+      <li>htmx の要求開始時に対象 XHR の <code>upload</code> へ標準の <code>progress</code> イベントを登録し、送信済み量を <code>&lt;progress&gt;</code> に反映します。送信イベントだけを購読するため応答受信の進捗とは混ざりません。100% はブラウザーが本文を送り終えた意味であり、サーバー処理の完了を示しません。</li>
+      <li>サーバーは件数、1 MiB の容量、120文字のファイル名、拡張子と UTF-8 の実データを検証します。ブラウザーの <code>accept</code> と申告 MIME 型だけでは判定しません。入力内容は出力せず、ファイル名はパス部分を除いてエスケープ表示します。</li>
+      <li>検証後にアプリケーションの状態としては保存しません。サーブレットが要求処理用に作成した一時データは要求終了時にクリーンアップされます。ファイルのプレビュー、実行、恒久保存は行いません。</li>
+      <li>通常フォームの検証エラーでブラウザーのファイル選択を復元することはできません。再選択してください。別例「Preserving File Inputs after Form Errors」で htmx 差し替え時の保持を扱います。</li>
+    </ul>
+    <h2>状態・制約</h2>
+    <p>固定データやセッション状態は使いません。要求は1ファイル、1 MiBまでです。1 MiB はファイル本体の上限で、multipart の境界などを含む要求全体にも 1100 KiB の上限があります。ファイル内容は UTF-8 テキストで、NUL などの制御文字を含まない必要があります。</p>
+    <p>送信中の通信断や30秒のタイムアウトでは成功と見なしません。入力ファイルを選び直し、必要ならページを再読み込みして再試行してください。この例ではサーバー側の長時間処理を行いません。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/file-upload/">htmx 公式 File Upload</a> の multipart 送信と進捗表示を参考にしています。送信と応答受信の進捗を混同しないよう、公式例の <code>htmx:xhr:progress</code> ではなく対象 XHR の <code>upload</code> に標準 <code>progress</code> リスナーを登録します。公式例の Hyperscript とインライン JavaScript は使わず、外部 JavaScript、サーバー検証、容量上限、CSRF、通常フォーム、要求後の破棄を加えています。追加依存はありません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

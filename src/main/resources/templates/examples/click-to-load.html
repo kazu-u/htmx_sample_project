@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>クリックして続きを読み込む | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+</head>
+<body>
+<header>
+  <a th:href="@{/}">Spring Boot + htmx サンプル</a>
+</header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('click-to-load')}"></aside>
+<main>
+  <h1>クリックして続きを読み込む</h1>
+  <p>最初の数行を表示し、「続きを読み込む」を押すたびに次の行を追加します。</p>
+  <ol>
+    <li>表の下にある「続きを読み込む」を押します。</li>
+    <li>次の担当者が追加され、読み込みボタンが次のページ用に置き換わります。</li>
+    <li>最後のデータまで読み込むと、読み込みボタンがなくなります。</li>
+  </ol>
+  <noscript><p>JavaScript が無効の場合は、操作のたびにページ全体を表示します。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">読み込み中です…</p>
+
+  <section id="directory" aria-labelledby="directory-title" data-request-region>
+    <h2 id="directory-title">架空の担当者一覧</h2>
+    <p>以下は固定データです。実在する人物・連絡先ではありません。</p>
+    <table aria-describedby="directory-note">
+      <caption>htmx要求の差し替え先は次ページ用の行です</caption>
+      <thead><tr><th scope="col">名前</th><th scope="col">チーム</th></tr></thead>
+      <tbody id="agents">
+        <th:block th:replace="~{examples/click-to-load-rows :: pageRows}"></th:block>
+      </tbody>
+    </table>
+    <p id="directory-note">通常のリンク遷移では、指定したページまでの行をページ全体で再表示します。</p>
+  </section>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <p>Controller はページ番号に応じた HTML を返します。htmx は JSON を組み立てず、返された行と次の読み込み操作で現在の操作行を置き換えます。</p>
+    <table>
+      <caption>ページ番号は1始まり。htmx利用時の更新先は #load-more</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答</th></tr></thead>
+      <tbody>
+      <tr><td>初期表示</td><td>GET /examples/click-to-load</td><td>200・ページ全体、最初の3行</td></tr>
+      <tr><td>続きを読む</td><td>GET /examples/click-to-load?page=2 など</td><td>200・次の行と次の操作行。最後は操作行なし</td></tr>
+      <tr><td>範囲外ページ</td><td>GET /examples/click-to-load?page=0 など</td><td>404・対象なし</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>hx-get</code> は次のページを取得し、<code>hx-target="#load-more"</code> と <code>hx-swap="outerHTML"</code> は操作行を新しい行と次の操作行に置き換えます。</li>
+      <li><code>hx-sync="this:drop"</code> と送信中のボタン無効化で、連続操作による重複取得を抑えます。サーバーはページ数を上限で検証します。</li>
+      <li>取得は副作用のない GET です。サンプルの状態は持たず、データはサーバー内の固定リストです。</li>
+      <li>通常フォームでも操作できます。htmx がない場合は次ページまでの一覧全体を再表示し、読み込んだ行を維持します。</li>
+      <li>htmx通信は同一オリジンのみ、HTML内スクリプトと式評価は無効です。CSRF・CSP・エラー通知は既存サンプルと同じ設定です。</li>
+    </ul>
+    <h2>異常系と制約</h2>
+    <ul>
+      <li>URLのページ番号を0や最終ページより大きい値にすると404になります。数値でない値は400になります。</li>
+      <li>通信失敗・タイムアウトは通知し、既存の行を維持します。再読み込みすれば続きを再取得できます。</li>
+      <li>担当者は8件、1回に3件の固定データです。DBや外部APIは使わず、セッションにも保存しません。</li>
+    </ul>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/click-to-load/">htmx 公式 Click To Load</a> の行を次の行に置き換える考え方を参考に、Spring MVC / Thymeleaf で独自実装しています。操作中の行をターゲットとして使い続けるので、差し替えのたびに次の操作要素が新しくなります。</p>
+    <p>公式例のテーブル更新に加え、CSRF・範囲検証・重複要求対策・終端・通常フォームの代替・日本語の通信説明を用意しました。追加ライブラリやJavaScript式は使いません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

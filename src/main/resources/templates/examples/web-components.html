@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>Web Components | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+  <script defer th:src="@{/js/web-components.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('web-components')}"></aside>
+<main>
+  <h1>Web Components（Shadow DOM）</h1>
+  <p>カスタム要素の Shadow DOM 内にあるボタンから htmx を呼び出し、部品ごとに結果を差し替えます。</p>
+  <ol>
+    <li>「情報を取得」を押し、押したカードの結果だけが更新されることを確認します。</li>
+    <li>同じ操作を別のカードでも試し、各部品の表示が独立していることを確認します。</li>
+    <li>JavaScript が使えない場合は、各カードの通常リンクから同じ固定データをページ全体で表示します。</li>
+  </ol>
+  <noscript><p>JavaScript が無効なため部品内の操作は使えません。下の通常リンクを利用してください。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+
+  <section aria-labelledby="components-title">
+    <h2 id="components-title">独立したカスタム要素</h2>
+    <div class="component-grid">
+      <article>
+        <htmx-summary-card topic="inventory"></htmx-summary-card>
+        <p><a th:href="@{/examples/web-components/summary/inventory}">在庫を通常ページで表示</a></p>
+      </article>
+      <article>
+        <htmx-summary-card topic="orders"></htmx-summary-card>
+        <p><a th:href="@{/examples/web-components/summary/orders}">注文を通常ページで表示</a></p>
+      </article>
+    </div>
+  </section>
+
+  <template id="summary-card-template">
+    <link rel="stylesheet" th:href="@{/css/web-components.css}">
+    <article>
+      <h3 data-title></h3>
+      <button type="button" data-load
+              hx-target="next .summary-result" hx-swap="innerHTML"
+              hx-indicator="this" hx-disabled-elt="this">
+        情報を取得
+      </button>
+      <div class="summary-result" aria-live="polite">まだ情報を取得していません。</div>
+      <p data-status role="status" aria-live="polite"></p>
+      <p data-error role="alert" hidden></p>
+    </article>
+  </template>
+
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <table>
+      <caption>Shadow DOM 内のボタンから固定データを取得します</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答・画面更新</th></tr></thead>
+      <tbody>
+      <tr><td>在庫を取得</td><td>GET /examples/web-components/summary/inventory</td><td>200・在庫の HTML 断片で同じカードの結果だけを置換</td></tr>
+      <tr><td>注文を取得</td><td>GET /examples/web-components/summary/orders</td><td>200・注文の HTML 断片で同じカードの結果だけを置換</td></tr>
+      <tr><td>通常リンク</td><td>同じ URL</td><td>200・選んだ結果を含むページ全体</td></tr>
+      <tr><td>HTTP エラー・通信断・タイムアウト</td><td>同じ URL</td><td>カード内にエラーを通知し、直前の結果を維持</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>connectedCallback</code> でテンプレートから Shadow DOM を作り、URL を固定候補から設定した後に <code>htmx.process(shadowRoot)</code> を呼びます。初期ページの通常の走査は Shadow DOM の内部までは行わないためです。</li>
+      <li><code>hx-target="next .summary-result"</code> は押したボタンと同じ Shadow DOM 内で対象を探します。別カードや文書全体を指す <code>global:</code> セレクターは使いません。</li>
+      <li>Shadow DOM は HTML・CSS の適用範囲を分けます。htmx のイベントは外側にも伝わるため、カード自身の状態表示を行い、共通画面用の通知処理とは重複させません。</li>
+      <li>サーバーは固定データを返すだけです。GET による状態変更、DB、外部 API、追加依存はありません。応答は Thymeleaf でエスケープします。</li>
+      <li>カードのスタイルは外部 CSS を Shadow DOM 内から読み込みます。CSP と htmx の <code>selfRequestsOnly</code> / <code>allowScriptTags</code> / <code>allowEval</code> の安全設定は共通設定のままです。</li>
+    </ul>
+    <h2>異常系と制約</h2>
+    <p>不明なカード URL は 404 です。HTTP エラー・通信断・10 秒のタイムアウト時は既存結果を残してカード内に通知し、ボタンから再試行できます。JavaScript 無効時も通常リンクで結果ページを開けます。</p>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/web-components/">htmx 公式 Web Components</a> は Shadow DOM に対する <code>htmx.process</code> と内部セレクターを示します。本サンプルは固定の複数カード、開いた Shadow DOM、通常ページ代替、失敗通知を加えます。開いた Shadow DOM は学習時に構造を確認しやすくするためで、秘密情報の保護境界ではありません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>

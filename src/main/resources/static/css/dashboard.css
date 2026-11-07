@@ -1,0 +1,12 @@
+.dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1rem; }
+.dashboard-card { min-width: 0; margin: 0; }
+.dashboard-card dl { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .35rem 1rem; }
+.dashboard-card dl div { display: contents; }
+.dashboard-card dt { font-weight: bold; }
+.dashboard-card dd { margin: 0; text-align: right; }
+.dashboard-card time { font-variant-numeric: tabular-nums; }
+.dashboard-stale { color: #9b1717; font-weight: bold; }
+@media (max-width: 48rem) {
+  .dashboard-card dl { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .dashboard-card dd { text-align: left; }
+}

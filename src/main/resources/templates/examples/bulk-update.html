@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"selfRequestsOnly":true,"allowScriptTags":false,"allowEval":false,"includeIndicatorStyles":false,"timeout":10000,"historyCacheSize":0}'>
+  <meta name="_csrf" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:content="${_csrf.headerName}">
+  <title>まとめて有効・無効を更新 | Spring Boot + htmx</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <script defer th:src="@{/vendor/htmx/htmx-2.0.11.min.js}"></script>
+  <script defer th:src="@{/js/app.js}"></script>
+</head>
+<body>
+<header><a th:href="@{/}">Spring Boot + htmx サンプル</a></header>
+<div class="page-layout">
+<aside th:replace="~{fragments/sample-menu :: sampleMenu('bulk-update')}"></aside>
+<main>
+  <h1>まとめて有効・無効を更新</h1>
+  <p>全4人の有効・無効を、チェック状態どおり一度に保存します。チェックを外した人は無効になります。</p>
+  <ol>
+    <li>有効にしたい人にチェックを付け、無効にしたい人は外します。</li>
+    <li>「全行を保存する」を押します。全解除で全員無効、全選択で全員有効になります。</li>
+    <li>「初期状態に戻す」で保存済みの状態と未保存の選択を初期化できます。</li>
+  </ol>
+  <noscript><p>JavaScript が無効でも通常フォームで保存・初期化できます。</p></noscript>
+  <p id="request-error" role="alert" hidden></p>
+  <p id="request-status" role="status" aria-live="polite"></p>
+  <p id="loading" class="htmx-indicator" role="status">保存しています…</p>
+  <section id="bulk-panel" th:fragment="panel" data-request-region aria-labelledby="bulk-title">
+    <h2 id="bulk-title">架空の利用者一覧</h2>
+    <p>チェックは今回保存する値です。「保存済み」列は直前にサーバーへ保存した値です。</p>
+    <form id="bulk-form" method="post" th:action="@{/examples/bulk-update}"
+          th:object="${bulkUpdateForm}" th:attr="hx-post=@{/examples/bulk-update}"
+          hx-target="#bulk-panel" hx-swap="outerHTML" hx-sync="this:drop"
+          hx-disabled-elt="#bulk-panel input, #bulk-panel button" hx-indicator="#loading">
+      <input type="hidden" th:field="*{revision}">
+      <div id="bulk-errors" role="alert" tabindex="-1" class="field-error" th:if="${#fields.hasAnyErrors()}">
+        <p>入力内容を確認してください。保存は行っていません。</p>
+        <ul><li th:each="error : ${#fields.allErrors()}" th:text="${error}"></li></ul>
+      </div>
+      <table>
+        <caption>有効にする人だけが activeIds として送信されます</caption>
+        <thead><tr><th scope="col">名前・メール</th><th scope="col">保存済み</th><th scope="col">今回の選択</th></tr></thead>
+        <tbody>
+        <tr th:each="person : ${people}">
+          <th scope="row"><span th:text="${person.name}"></span><br><span th:text="${person.email}"></span></th>
+          <td th:text="${person.active ? '有効' : '無効'}"></td>
+          <td><label class="confirmation-label">
+            <input type="checkbox" name="activeIds" th:value="${person.id}"
+                   th:checked="${bulkUpdateForm.activeIds != null and #lists.contains(bulkUpdateForm.activeIds, '' + person.id)}"
+                   th:attr="aria-describedby=${#fields.hasAnyErrors() ? 'bulk-errors' : null}">
+            <span th:text="|${person.name}を有効にする|"></span>
+          </label></td>
+        </tr>
+        </tbody>
+      </table>
+      <button id="bulk-save" type="submit">全行を保存する</button>
+      <output id="bulk-notice" class="notice" th:if="${notice}" th:text="${notice}"></output>
+    </form>
+    <form method="post" th:action="@{/examples/bulk-update/reset}">
+      <input type="hidden" name="revision" th:value="${listRevision}">
+      <button type="submit">初期状態に戻す（未保存の選択も破棄）</button>
+    </form>
+  </section>
+  <section aria-labelledby="explanation-title">
+    <h2 id="explanation-title">仕組みと通信</h2>
+    <p>HTML のチェックボックスは、チェックされた値だけを送ります。Controller が入力を検証し、State が全行を一つの排他区間で保存します。JSON や外部 API は使いません。</p>
+    <table>
+      <caption>ページ全体とフォーム領域の差し替え</caption>
+      <thead><tr><th>操作</th><th>メソッド / URL</th><th>応答・差し替え</th></tr></thead>
+      <tbody>
+      <tr><td>表示・再取得</td><td>GET /examples/bulk-update</td><td>200・通常は全体、htmx は bulk-panel 断片</td></tr>
+      <tr><td>全行保存</td><td>POST /examples/bulk-update</td><td>200・bulk-panel 置換。通常フォームは一覧へリダイレクト</td></tr>
+      <tr><td>不正ID・重複・版情報の入力不正</td><td>同上</td><td>422・全行未更新、既知の行のチェックを保持</td></tr>
+      <tr><td>古い版</td><td>同上</td><td>409・差し替えず選択を保持、再読み込みを案内</td></tr>
+      <tr><td>初期化</td><td>POST /examples/bulk-update/reset</td><td>版照合後、一覧へリダイレクト。古い版は409</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li><code>hx-post</code> は全行の選択と版を送信、<code>hx-target</code> と <code>hx-swap="outerHTML"</code> はフォーム領域の置換を指定します。</li>
+      <li><code>hx-sync="this:drop"</code> と <code>hx-disabled-elt</code> で二重送信・送信中の変更を抑止します。成功後は保存ボタンへ、422はエラーへフォーカスを移します。</li>
+      <li>フォームの hidden と共通 JavaScript のヘッダーで CSRF トークンを送り、Spring Security が検証します。GET では有効・無効を変更しません。</li>
+      <li>不正 ID・4件超過・重複は422で全件拒否します。全解除はエラーではありません。入力不正のIDを新しいチェック欄として表示しません。</li>
+    </ul>
+    <h2>異常系・状態の寿命・制約</h2>
+    <ul>
+      <li>別タブで先に保存してから古い画面で保存すると409です。選択を控え、再読み込みして選び直してください。</li>
+      <li>開発者ツールでIDを不正な値に変えると422です。CSRF の欠落・不一致は403です。</li>
+      <li>通信断・タイムアウトは入力を残して通知します。保存結果が不明な場合は成功と推測せず、選択を控えて再読み込みしてください。</li>
+      <li>架空の4件をセッション単位で分離します。20分の無通信・再起動で初期状態に戻ります。全体100セッションの上限があります。</li>
+      <li>実際のアカウント・認証・通知は扱いません。本番では対象への認可やデータベースのトランザクションが別途必要です。</li>
+    </ul>
+    <h2>公式例との差分・出典</h2>
+    <p><a href="https://htmx.org/examples/bulk-update/">htmx 公式 Bulk Update</a> の、表をフォームで囲みチェック状態を一括送信する考え方を参考に独自実装しています。</p>
+    <p>公式例は通知だけを差し替えます。本例は保存済み状態と新しい版情報を一致させるためフォーム領域を置換します。通知は output で示し、消えるトーストやアニメーションは使いません。CSRF、入力検証、セッション分離、競合拒否、初期化、通常フォーム代替を追加しました。追加依存はありません。</p>
+  </section>
+</main>
+</div>
+</body>
+</html>
